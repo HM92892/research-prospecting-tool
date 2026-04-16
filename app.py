@@ -523,7 +523,7 @@ function simpleMarkdown(text) {
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/\n/g, '<br>');
+    .replace(/\\n/g, '<br>');
 }
 
 function switchTab(tab) {
@@ -536,8 +536,8 @@ function switchTab(tab) {
 function copyEmail(btn, idx) {
   if (!currentData || !currentData.campaigns[idx]) return;
   const c = currentData.campaigns[idx];
-  const text = 'Subject: ' + (c.subject_line || '') + '\n\n' + (c.email_body || '') +
-    (c.ps_line ? '\n\nPS: ' + c.ps_line : '');
+  const text = 'Subject: ' + (c.subject_line || '') + '\\n\\n' + (c.email_body || '') +
+    (c.ps_line ? '\\n\\nPS: ' + c.ps_line : '');
   navigator.clipboard.writeText(text).then(() => {
     btn.textContent = 'Copied';
     btn.classList.add('copied');
@@ -547,20 +547,20 @@ function copyEmail(btn, idx) {
 
 function downloadMarkdown() {
   if (!currentData) return;
-  let md = '# ' + (currentData.domain || 'Company') + ' - Prospecting Kit\n\n';
-  md += '## Company Analysis\n\n' + (currentData.company_analysis || '') + '\n\n';
-  md += '## Company Brief\n\n' + (currentData.brief || '') + '\n\n';
-  md += '## Campaigns\n\n';
+  let md = '# ' + (currentData.domain || 'Company') + ' - Prospecting Kit\\n\\n';
+  md += '## Company Analysis\\n\\n' + (currentData.company_analysis || '') + '\\n\\n';
+  md += '## Company Brief\\n\\n' + (currentData.brief || '') + '\\n\\n';
+  md += '## Campaigns\\n\\n';
   (currentData.campaigns || []).forEach((c, i) => {
-    md += '### ' + (c.type || 'Campaign ' + (i+1)) + ': ' + (c.offer_name || '') + '\n\n';
-    md += '**What You Give Away:** ' + (c.what_youre_giving || '') + '\n\n';
-    md += '**Target ICP:** ' + (c.target_icp || '') + '\n\n';
-    md += '**Apollo Search:** ' + (c.apollo_search || '') + '\n\n';
-    md += '**LinkedIn Search:** ' + (c.linkedin_search || '') + '\n\n';
-    md += '**Subject:** ' + (c.subject_line || '') + '\n\n';
-    md += (c.email_body || '') + '\n\n';
-    if (c.ps_line) md += 'PS: ' + c.ps_line + '\n\n';
-    md += '---\n\n';
+    md += '### ' + (c.type || 'Campaign ' + (i+1)) + ': ' + (c.offer_name || '') + '\\n\\n';
+    md += '**What You Give Away:** ' + (c.what_youre_giving || '') + '\\n\\n';
+    md += '**Target ICP:** ' + (c.target_icp || '') + '\\n\\n';
+    md += '**Apollo Search:** ' + (c.apollo_search || '') + '\\n\\n';
+    md += '**LinkedIn Search:** ' + (c.linkedin_search || '') + '\\n\\n';
+    md += '**Subject:** ' + (c.subject_line || '') + '\\n\\n';
+    md += (c.email_body || '') + '\\n\\n';
+    if (c.ps_line) md += 'PS: ' + c.ps_line + '\\n\\n';
+    md += '---\\n\\n';
   });
 
   const blob = new Blob([md], { type: 'text/markdown' });
