@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flask File Upload</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="container">
+    <h1>File Upload</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="upload-section">
+      <form action="/upload" method="post" enctype="multipart/form-data">
+        <label class="file-label" for="files">
+          <span>Choose files or drag and drop</span>
+          <input type="file" id="files" name="files" multiple />
+        </label>
+        <button type="submit" class="btn btn-primary">Upload</button>
+      </form>
+    </div>
+
+    <div class="files-section">
+      <h2>Uploaded Files</h2>
+      {% if files %}
+        <table class="files-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Size</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for file in files %}
+            <tr>
+              <td>{{ file.name }}</td>
+              <td>{{ (file.size / 1024) | round(1) }} KB</td>
+              <td class="actions">
+                <a href="{{ url_for('download', filename=file.name) }}" class="btn btn-sm btn-secondary">Download</a>
+                <form action="{{ url_for('delete', filename=file.name) }}" method="post" style="display:inline;">
+                  <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete {{ file.name }}?')">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No files uploaded yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

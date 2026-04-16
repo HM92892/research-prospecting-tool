@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+pnpm workspace monorepo using TypeScript, plus a standalone Python Flask web application.
 
 ## Stack
 
@@ -15,6 +15,17 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+
+## Flask App (`flask-app/`)
+
+A standalone Python Flask web application supporting file uploads.
+
+- **Entry point**: `flask-app/app.py`
+- **Templates**: `flask-app/templates/`
+- **Static assets**: `flask-app/static/`
+- **Uploaded files**: `flask-app/uploads/`
+- **Run command**: `cd flask-app && python app.py`
+- **Port**: 5000 (reads `PORT` env var)
 
 ## Key Commands
 
