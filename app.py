@@ -34,14 +34,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }
 
   .container {
-    max-width: 900px;
+    max-width: 860px;
     margin: 0 auto;
-    padding: 40px 24px;
+    padding: 28px 24px;
   }
 
   .header {
     text-align: center;
-    margin-bottom: 48px;
+    margin-bottom: 28px;
   }
 
   .header h1 {
@@ -139,37 +139,39 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .section {
     background: #141414;
     border: 1px solid #222;
-    border-radius: 12px;
-    padding: 28px;
-    margin-bottom: 20px;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 14px;
   }
 
   .section-title {
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
     color: #4f8ff7;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
 
   .section-content {
     font-size: 14px;
     color: #ccc;
-    white-space: pre-wrap;
-    line-height: 1.7;
+    line-height: 1.6;
   }
 
   .section-content h1, .section-content h2, .section-content h3 {
     color: #fff;
-    margin-top: 16px;
-    margin-bottom: 8px;
+    margin-top: 12px;
+    margin-bottom: 2px;
   }
 
-  .section-content h1 { font-size: 20px; }
-  .section-content h2 { font-size: 16px; }
-  .section-content ul, .section-content ol { padding-left: 20px; margin: 8px 0; }
-  .section-content li { margin-bottom: 4px; }
+  .section-content h1 { font-size: 18px; }
+  .section-content h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #aaa; }
+  .section-content h3 { font-size: 13px; font-weight: 700; color: #bbb; }
+  .section-content ul, .section-content ol { padding-left: 20px; margin: 4px 0 8px; }
+  .section-content li { margin-bottom: 2px; }
+  .section-content br { display: none; }
+  .section-content p { margin-bottom: 6px; }
 
   .campaigns-grid {
     display: flex;
@@ -181,7 +183,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
     border-radius: 10px;
-    padding: 24px;
+    padding: 18px;
     transition: border-color 0.2s;
   }
 
@@ -215,7 +217,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }
 
   .campaign-field {
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
 
   .field-label {
@@ -516,14 +518,36 @@ function renderResults(data) {
 }
 
 function simpleMarkdown(text) {
-  return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/\\n/g, '<br>');
+  const escaped = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = escaped.split('\\n');
+  let html = '';
+  let inList = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) {
+      if (inList) { html += '</ul>'; inList = false; }
+      continue;
+    }
+    if (/^### (.+)$/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<h3>' + line.replace(/^### /, '') + '</h3>';
+    } else if (/^## (.+)$/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<h2>' + line.replace(/^## /, '') + '</h2>';
+    } else if (/^# (.+)$/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<h1>' + line.replace(/^# /, '') + '</h1>';
+    } else if (/^- (.+)$/.test(line)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += '<li>' + line.replace(/^- /, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') + '</li>';
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<p>' + line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') + '</p>';
+    }
+  }
+  if (inList) html += '</ul>';
+  return html;
 }
 
 function switchTab(tab) {
