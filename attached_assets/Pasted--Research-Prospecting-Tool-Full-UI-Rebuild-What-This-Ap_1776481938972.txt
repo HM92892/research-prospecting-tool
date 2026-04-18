@@ -1,0 +1,236 @@
+# Research & Prospecting Tool — Full UI Rebuild
+
+## What This App Is
+
+This is an AI-powered SDR research and prospecting tool. An SDR pastes a company URL, and the tool does three things automatically:
+
+1. **Research** — Scrapes the company's website and extracts intelligence (who they are, who they serve, named customers, case studies, proof points, pricing model, GTM motion)
+2. **Build ICP** — Based on the scraped data, defines the ideal buyer profile and generates search queries for Apollo and LinkedIn Sales Navigator
+3. **Generate Outreach** — Creates 3 cold email campaigns, each grounded in the company's real case studies and customer data
+
+The backend (scraping + Claude API calls) already works. This rebuild is **UI/UX only**. Do not change the backend logic, API calls, or prompt structure unless specifically noted below.
+
+---
+
+## Design Direction
+
+**Style:** Match the look and feel of Notion's UI. Light mode, extremely clean, minimal borders, generous white space, content-first design. This should look like a polished product, not a hackathon project. The kind of tool a hiring manager sees and thinks "this person understands product design."
+
+**Reference:** notion.so — study how Notion handles:
+- Page layouts with clean content blocks
+- Subtle dividers between sections (thin gray lines, not heavy borders)
+- Typography hierarchy (clear headings, comfortable body text, muted secondary text)
+- Inline badges and tags (like Notion's colored database tags)
+- Toggle/accordion sections (clean expand/collapse)
+- Hover states (subtle background color shifts, not heavy shadows)
+- Button styles (minimal, not oversized)
+
+**UI Framework:** Use **shadcn/ui** components (or Radix UI primitives + Tailwind CSS). These give you Notion-quality components out of the box: clean inputs, tabs, cards, accordions, badges, tooltips, copy buttons. Do NOT use Bootstrap or Material UI. If shadcn/ui is not available in this Replit environment, use Tailwind CSS with custom components styled to match Notion.
+
+**Font:** Inter (Google Fonts import). This is the same font family Notion uses. Use it everywhere.
+
+**Typography scale:**
+- Page title: 32px, font-weight 700, near-black (#191919)
+- Section headings: 18px, font-weight 600, dark gray (#37352F)
+- Body text: 15px, font-weight 400, dark gray (#37352F)
+- Secondary/helper text: 13px, font-weight 400, medium gray (#787774)
+- Labels and small caps: 11px, font-weight 600, uppercase, letter-spacing 0.5px, gray (#9B9A97)
+
+**Color palette (Notion-inspired):**
+- Page background: #FFFFFF
+- Content area max-width: 900px, centered (like a Notion page)
+- Subtle section borders: #E9E9E7 (1px solid, very light)
+- Cards/blocks: no visible border or shadow by default, just content with spacing. Use a very subtle background (#F7F6F3) only for callout blocks or code blocks
+- Primary accent: Notion blue (#2383E2) for links, active tabs, primary buttons
+- Badges: use Notion's tag colors:
+  - Blue: #D3E5EF background, #183B56 text
+  - Green: #DBEDDB background, #1C4428 text  
+  - Yellow/amber: #FDECC8 background, #5C3B00 text
+  - Red/pink: #FFE2DD background, #6E2B20 text
+  - Purple: #E8DEEE background, #412D5A text
+  - Gray: #E3E2E0 background, #5A5A58 text
+- Buttons: 
+  - Primary: blue (#2383E2), white text, subtle border-radius (4px), no shadow
+  - Secondary: transparent with gray border, dark text
+  - On hover: slightly darker shade, no dramatic animation
+- Input fields: light gray border (#E9E9E7), 8px border-radius, no shadow, placeholder text in #C4C4C0
+
+**Layout principles:**
+- Max content width: 900px, centered on page (exactly like a Notion document)
+- Generous vertical spacing between sections (32-48px)
+- No heavy card shadows anywhere. Notion uses flat design with spacing and typography to create hierarchy, not shadows or borders.
+- Use horizontal dividers (1px #E9E9E7 lines) between major sections instead of card containers
+- Toggle/accordion sections should use Notion's triangle arrow style
+
+---
+
+## Page Layout (Top to Bottom)
+
+### 1. Hero Section (top of page)
+
+A clean hero section that explains what the tool does. Not a landing page — more like a dashboard header.
+
+**Layout:**
+- Headline: "Research & Prospecting Tool"
+- Subheadline (one line): "Paste a company URL. Get full company intelligence, buyer profiles, and personalized outreach in seconds."
+- Below that, a horizontal 3-step visual showing the workflow:
+  - Step 1 icon (magnifying glass or globe) + "Research" + "Scrape website, extract customers & case studies"
+  - Step 2 icon (target or user) + "Build ICP" + "Define buyer profile, generate search queries"  
+  - Step 3 icon (mail or pen) + "Create Outreach" + "3 campaign angles with ready-to-send emails"
+- These 3 steps should be in a horizontal row of small cards or a clean icon + text layout. Subtle, not oversized. Use light gray backgrounds or outlined cards.
+
+### 2. Input Section
+
+**Important change from current version:** Simplify the inputs. The tool should figure out most context from the URL itself.
+
+**Layout:** A clean card with the following fields:
+
+**Field 1 — Target Company URL** (required)
+- Full-width text input
+- Placeholder: "https://www.company.com"
+- Helper text below: "We'll scrape their site to extract customers, case studies, and GTM signals automatically."
+
+**Field 2 — What product are you selling?** (required)
+- Text input, full width
+- Placeholder: "e.g., AI-powered lead scoring platform"
+- Helper text: "Be specific. If your company sells multiple products, name the one you're responsible for."
+
+**Field 3 — Your proof points** (optional but recommended)
+- Textarea, 3 rows
+- Placeholder: "e.g., Helped Ramp's SDR team book 3x more meetings in 60 days. Notion cut list building from 4 hours to 20 minutes per week."
+- Helper text: "2-3 specific customer outcomes with names and numbers. Makes emails dramatically better."
+
+**Field 4 — Sample buyer LinkedIn profiles** (optional)
+- Text input that allows multiple URLs (comma-separated or one per line)
+- Placeholder: "Paste 1-3 LinkedIn profile URLs of your ideal buyers"
+- Helper text: "Optional. Providing example buyers improves ICP accuracy and outreach targeting. The more examples, the better the output."
+- Show a small info badge/tooltip: "Why? Analyzing real buyer profiles helps the tool understand your actual ICP instead of guessing."
+
+**Remove these current fields entirely:**
+- "Company Name" (extracted from URL automatically)
+- "What You Sell" is kept but reworded as above
+- "Customer Wins / Proof" is kept but reworded as above  
+- "Typical Buyer" is replaced by the LinkedIn profile input
+
+**Generate button:**
+- Full-width or right-aligned, prominent blue button
+- Text: "Generate Prospecting Kit"
+- Loading state: show a progress indicator with steps ("Scraping website..." → "Analyzing company..." → "Generating campaigns...")
+
+### 3. Output Section
+
+Only appears after generation is complete. Should feel like a polished report/dashboard.
+
+**3a. Company Summary Block (at the top of results)**
+
+A Notion-style callout block (light gray background #F7F6F3, no border, small left-side colored accent bar) that shows key intel at a glance:
+- Company name (large, bold, 24px)
+- One-liner description (regular body text below)
+- Inline property row (Notion database-style properties displayed horizontally):
+  - GTM Motion: colored tag badge (e.g., blue "Sales-Led" or green "Product-Led")
+  - Customers: "9 named customers" as a gray tag
+  - Case Studies: "7 case studies" as a gray tag
+- Who They Serve (1-2 lines, muted text)
+
+This replaces the current "MQL (Lead Magnet)" green badge which is confusing for a demo. Style this exactly like a Notion page header with inline database properties below the title.
+
+**3b. Tab Navigation**
+
+Keep the current 3-tab structure but restyle:
+- Tab 1: "Campaigns" (default active)
+- Tab 2: "Company Brief"  
+- Tab 3: "Full Analysis"
+
+Use Notion-style underlined tabs: text links in a horizontal row, active tab has a blue underline (2px) and darker text, inactive tabs are gray. No background colors, no pill shapes, no borders around the tab bar. Clean and minimal.
+
+**3c. Campaigns Tab**
+
+Each campaign in its own card with clear visual hierarchy:
+
+**Campaign Block Layout (Notion page style, NOT cards with borders):**
+
+Each campaign is a content section separated by a thin divider line (#E9E9E7). No card borders or shadows.
+
+- Campaign type: Notion-style colored inline tag at top (e.g., blue "Creative Ideas" / purple "Signal-Based" / green "Case Study")
+- Campaign title: 18px bold heading right next to the tag
+- Content sections below, each with a small-caps gray label (11px, uppercase, #9B9A97):
+  - **WHAT YOU'RE GIVING AWAY** — body text
+  - **WHY IT CONVERTS** — body text
+  - **OBJECTION ANALYSIS** — Notion-style callout block with light yellow background (#FFF3D4), small "!" icon on the left. Label: "Implicit Objection & How This Email Handles It"
+  - **TARGET ICP** — body text with a small 👤 emoji prefix (Notion style)
+  - **SEARCH QUERIES** — Apollo and LinkedIn Sales Nav queries each in a Notion-style code block (light gray #F7F6F3 background, monospace font, subtle border, copy button that appears on hover in top-right corner)
+  - **EMAILS** — each email as a Notion-style toggle block:
+    - Toggle header shows: "Email 1" + Subject line bold + word count as a green inline tag
+    - Expanded content: email body in comfortable reading format (15px, proper line spacing)
+    - Copy button (appears on hover, top-right)
+    - PS line in slightly lighter gray text (#787774)
+
+- Follow-up emails: Notion-style toggle ("▶ Show follow-up sequence (Email 2 & 3)") that expands inline
+
+**Between campaigns:** thin horizontal divider (#E9E9E7) with 32px spacing above and below.
+
+**3d. Company Brief Tab**
+
+Clean card layout with sections:
+- What They Do
+- Their Customers (with metrics)
+- Why Prospects Buy From Them
+- Pain Points to Probe (format as a numbered or bulleted list in a subtle card)
+- Competitive Landscape
+- Talk Track for Replies (put in a copy-able box)
+- Key Numbers (use a grid of stat cards — number in large bold text, label below)
+
+**3e. Full Analysis Tab**
+
+Keep the raw analysis data but format it better:
+- Each section (Company Name, One-Liner, Who They Serve, Named Customers, Case Studies, etc.) in its own card or clearly separated section
+- Named Customers: show as a clean list with bullet points and their metrics inline
+- Case Studies: show as mini-cards with Problem → Result format
+- Proof Points: show as a list of quoted stats
+
+### 4. Footer
+
+Small, subtle footer:
+- "Scraped X pages | Y characters | Z seconds" (keep this, it's good)
+- "Download as Markdown" button — restyle as a subtle outlined button, not the current prominent one
+
+---
+
+## Responsive / Polish Details
+
+- No heavy card shadows anywhere. Use spacing and subtle dividers to create hierarchy (the Notion way).
+- Border-radius: 4px for buttons and inputs, 6px for larger blocks (Notion uses small radii, not chunky rounded corners)
+- Subtle hover states: background color shifts to #F7F6F3 on hover, not shadow additions
+- Smooth 150ms transitions when switching tabs
+- Loading state: use a Notion-style progress bar at the top of the page (thin blue line animating across) plus step text below the input ("Scraping website..." → "Analyzing company..." → "Generating campaigns...")
+- Email copy buttons should show a brief "Copied!" tooltip (like Notion's copy link confirmation)
+- All text should be selectable for easy copy-paste
+- The 3-step hero should stack vertically on mobile
+- Content area: 900px max-width centered, with 24px horizontal padding on mobile
+- Notion-style toggles for expandable sections (triangle arrow ▶ that rotates to ▼ when open)
+
+---
+
+## What NOT to Change
+
+- Do not modify the backend Python code (analyzer.py, main.py, scraping logic)
+- Do not change the Claude API prompts or prompt structure
+- Do not change the campaign generation logic (3 campaigns, follow-ups, etc.)
+- Do not change the API endpoint structure (/api/generate, etc.)
+- Keep all existing functionality — this is a visual redesign only
+- Keep the "Your Company" context fields (just reorganize them as described above)
+
+---
+
+## Summary of Changes from Current Version
+
+1. **Dark mode → Light mode** (clean SaaS look)
+2. **Add hero section** with 3-step workflow visual
+3. **Simplify inputs** — remove Company Name field (auto-extracted), add LinkedIn profile field, reword existing fields
+4. **Add Company Summary Card** at top of results (replaces the confusing MQL badge)
+5. **Restyle all output cards** — white cards, subtle borders, better typography hierarchy
+6. **Restyle tabs** — clean underlined or pill tabs instead of dark segmented control
+7. **Better email display** — cleaner cards with prominent copy buttons
+8. **Search queries in code blocks** — look copy-pasteable
+9. **Loading state** — show progress steps during generation
+10. **Overall polish** — consistent spacing, rounded corners, professional typography
