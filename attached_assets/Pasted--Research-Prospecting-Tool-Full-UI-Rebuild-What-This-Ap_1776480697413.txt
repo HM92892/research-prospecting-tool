@@ -1,0 +1,192 @@
+# Research & Prospecting Tool — Full UI Rebuild
+
+## What This App Is
+
+This is an AI-powered SDR research and prospecting tool. An SDR pastes a company URL, and the tool does three things automatically:
+
+1. **Research** — Scrapes the company's website and extracts intelligence (who they are, who they serve, named customers, case studies, proof points, pricing model, GTM motion)
+2. **Build ICP** — Based on the scraped data, defines the ideal buyer profile and generates search queries for Apollo and LinkedIn Sales Navigator
+3. **Generate Outreach** — Creates 3 cold email campaigns, each grounded in the company's real case studies and customer data
+
+The backend (scraping + Claude API calls) already works. This rebuild is **UI/UX only**. Do not change the backend logic, API calls, or prompt structure unless specifically noted below.
+
+---
+
+## Design Direction
+
+**Style:** Clean SaaS dashboard. Think Clay, Apollo, or Linear. Light mode (switch from current dark mode). Clean typography, card-based layouts, subtle shadows, rounded corners, lots of white space. Professional enough to demo to a hiring manager.
+
+**Font:** Inter or system sans-serif stack.
+
+**Color palette:**
+- Background: white (#FFFFFF) or very light gray (#F9FAFB)
+- Cards: white with subtle border (#E5E7EB) and light shadow
+- Primary accent: blue (#2563EB) for buttons and active states
+- Secondary accent: emerald (#059669) for success states and badges
+- Text: dark gray (#111827) for headings, medium gray (#6B7280) for secondary text
+- Muted backgrounds for code/query blocks: light gray (#F3F4F6)
+
+---
+
+## Page Layout (Top to Bottom)
+
+### 1. Hero Section (top of page)
+
+A clean hero section that explains what the tool does. Not a landing page — more like a dashboard header.
+
+**Layout:**
+- Headline: "Research & Prospecting Tool"
+- Subheadline (one line): "Paste a company URL. Get full company intelligence, buyer profiles, and personalized outreach in seconds."
+- Below that, a horizontal 3-step visual showing the workflow:
+  - Step 1 icon (magnifying glass or globe) + "Research" + "Scrape website, extract customers & case studies"
+  - Step 2 icon (target or user) + "Build ICP" + "Define buyer profile, generate search queries"  
+  - Step 3 icon (mail or pen) + "Create Outreach" + "3 campaign angles with ready-to-send emails"
+- These 3 steps should be in a horizontal row of small cards or a clean icon + text layout. Subtle, not oversized. Use light gray backgrounds or outlined cards.
+
+### 2. Input Section
+
+**Important change from current version:** Simplify the inputs. The tool should figure out most context from the URL itself.
+
+**Layout:** A clean card with the following fields:
+
+**Field 1 — Target Company URL** (required)
+- Full-width text input
+- Placeholder: "https://www.company.com"
+- Helper text below: "We'll scrape their site to extract customers, case studies, and GTM signals automatically."
+
+**Field 2 — What product are you selling?** (required)
+- Text input, full width
+- Placeholder: "e.g., AI-powered lead scoring platform"
+- Helper text: "Be specific. If your company sells multiple products, name the one you're responsible for."
+
+**Field 3 — Your proof points** (optional but recommended)
+- Textarea, 3 rows
+- Placeholder: "e.g., Helped Ramp's SDR team book 3x more meetings in 60 days. Notion cut list building from 4 hours to 20 minutes per week."
+- Helper text: "2-3 specific customer outcomes with names and numbers. Makes emails dramatically better."
+
+**Field 4 — Sample buyer LinkedIn profiles** (optional)
+- Text input that allows multiple URLs (comma-separated or one per line)
+- Placeholder: "Paste 1-3 LinkedIn profile URLs of your ideal buyers"
+- Helper text: "Optional. Providing example buyers improves ICP accuracy and outreach targeting. The more examples, the better the output."
+- Show a small info badge/tooltip: "Why? Analyzing real buyer profiles helps the tool understand your actual ICP instead of guessing."
+
+**Remove these current fields entirely:**
+- "Company Name" (extracted from URL automatically)
+- "What You Sell" is kept but reworded as above
+- "Customer Wins / Proof" is kept but reworded as above  
+- "Typical Buyer" is replaced by the LinkedIn profile input
+
+**Generate button:**
+- Full-width or right-aligned, prominent blue button
+- Text: "Generate Prospecting Kit"
+- Loading state: show a progress indicator with steps ("Scraping website..." → "Analyzing company..." → "Generating campaigns...")
+
+### 3. Output Section
+
+Only appears after generation is complete. Should feel like a polished report/dashboard.
+
+**3a. Company Summary Card (at the top of results)**
+
+A highlighted card at the top that shows key intel at a glance:
+- Company name (large, bold)
+- One-liner description
+- GTM Motion badge (e.g., "Sales-Led" or "Product-Led" — use colored badges, green for PLG, blue for sales-led)
+- Key stats row: Named Customers count, Case Studies count, Proof Points count
+- Who They Serve (1-2 lines)
+
+This replaces the current "MQL (Lead Magnet)" green badge which is confusing for a demo.
+
+**3b. Tab Navigation**
+
+Keep the current 3-tab structure but restyle:
+- Tab 1: "Campaigns" (default active)
+- Tab 2: "Company Brief"  
+- Tab 3: "Full Analysis"
+
+Use clean underlined tabs or pill-style tabs, not the current dark segmented control.
+
+**3c. Campaigns Tab**
+
+Each campaign in its own card with clear visual hierarchy:
+
+**Campaign Card Layout:**
+- Campaign type badge at top (e.g., "Creative Ideas" / "Signal-Based" / "Case Study") — use subtle colored pills
+- Campaign title (bold, larger text)
+- Sections within the card, each with a small label:
+  - **What You're Giving Away** — the offer description
+  - **Why It Converts** — one line
+  - **Objection Analysis** — keep the highlighted box but make it a light yellow/amber background card instead of the current dark red-bordered box. Label: "Implicit Objection & How This Email Handles It"
+  - **Target ICP** — clean text, maybe with a small user icon
+  - **Search Queries** — put Apollo and LinkedIn Sales Nav queries in subtle code-style blocks (light gray background, monospace font) so they look copy-pasteable
+  - **Emails** — each email in its own sub-card:
+    - Subject line bold, word count badge (keep the green badge, it works)
+    - Email body in a slightly indented or bordered area
+    - Copy button in top-right corner of email card
+    - PS line should be visually distinct (slightly lighter text or italic)
+
+- Follow-up emails: keep the expandable toggle but restyle it as a clean "Show follow-ups" link or accordion
+
+**Spacing between campaign cards:** Add clear visual separation. A horizontal divider or generous spacing.
+
+**3d. Company Brief Tab**
+
+Clean card layout with sections:
+- What They Do
+- Their Customers (with metrics)
+- Why Prospects Buy From Them
+- Pain Points to Probe (format as a numbered or bulleted list in a subtle card)
+- Competitive Landscape
+- Talk Track for Replies (put in a copy-able box)
+- Key Numbers (use a grid of stat cards — number in large bold text, label below)
+
+**3e. Full Analysis Tab**
+
+Keep the raw analysis data but format it better:
+- Each section (Company Name, One-Liner, Who They Serve, Named Customers, Case Studies, etc.) in its own card or clearly separated section
+- Named Customers: show as a clean list with bullet points and their metrics inline
+- Case Studies: show as mini-cards with Problem → Result format
+- Proof Points: show as a list of quoted stats
+
+### 4. Footer
+
+Small, subtle footer:
+- "Scraped X pages | Y characters | Z seconds" (keep this, it's good)
+- "Download as Markdown" button — restyle as a subtle outlined button, not the current prominent one
+
+---
+
+## Responsive / Polish Details
+
+- All cards should have consistent border-radius (8px or 12px)
+- Subtle hover states on interactive elements
+- Smooth transitions when switching tabs
+- The loading state should feel polished — consider a skeleton loading UI or animated progress steps
+- Email copy buttons should show a brief "Copied!" confirmation
+- All text should be selectable for easy copy-paste
+- The 3-step hero should stack vertically on mobile
+
+---
+
+## What NOT to Change
+
+- Do not modify the backend Python code (analyzer.py, main.py, scraping logic)
+- Do not change the Claude API prompts or prompt structure
+- Do not change the campaign generation logic (3 campaigns, follow-ups, etc.)
+- Do not change the API endpoint structure (/api/generate, etc.)
+- Keep all existing functionality — this is a visual redesign only
+- Keep the "Your Company" context fields (just reorganize them as described above)
+
+---
+
+## Summary of Changes from Current Version
+
+1. **Dark mode → Light mode** (clean SaaS look)
+2. **Add hero section** with 3-step workflow visual
+3. **Simplify inputs** — remove Company Name field (auto-extracted), add LinkedIn profile field, reword existing fields
+4. **Add Company Summary Card** at top of results (replaces the confusing MQL badge)
+5. **Restyle all output cards** — white cards, subtle borders, better typography hierarchy
+6. **Restyle tabs** — clean underlined or pill tabs instead of dark segmented control
+7. **Better email display** — cleaner cards with prominent copy buttons
+8. **Search queries in code blocks** — look copy-pasteable
+9. **Loading state** — show progress steps during generation
+10. **Overall polish** — consistent spacing, rounded corners, professional typography
