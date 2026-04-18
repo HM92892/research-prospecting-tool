@@ -486,7 +486,54 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .wb-good { background: var(--green-light); color: var(--green-dark); }
   .wb-warn { background: var(--yellow-light); color: var(--yellow-dark); }
 
-  /* ── Brief / Analysis sections ── */
+  /* ── ICP tab ── */
+.icp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.icp-block { }
+.icp-signal-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.icp-signal-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+}
+.icp-signal-list li:last-child { border-bottom: none; }
+.signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+.tags-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.icp-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--blue-light);
+  color: var(--blue-dark);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+@media (max-width: 640px) { .icp-grid { grid-template-columns: 1fr; } }
+
+/* ── Brief / Analysis sections ── */
   .content-section { margin-bottom: 28px; }
   .content-section-title {
     font-size: 14px;
@@ -644,7 +691,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <!-- Tabs -->
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('campaigns', this)">Campaigns</button>
-      <button class="tab-btn" onclick="switchTab('brief', this)">Company Brief</button>
+      <button class="tab-btn" onclick="switchTab('icp', this)">ICP &amp; Targeting</button>
+      <button class="tab-btn" onclick="switchTab('intel', this)">Company Intel</button>
       <button class="tab-btn" onclick="switchTab('analysis', this)">Full Analysis</button>
     </div>
 
@@ -652,8 +700,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div id="campaignsGrid"></div>
     </div>
 
-    <div class="tab-pane" id="tab-brief">
-      <div id="briefContent"></div>
+    <div class="tab-pane" id="tab-icp">
+      <div id="icpContent"></div>
+    </div>
+
+    <div class="tab-pane" id="tab-intel">
+      <div id="intelContent"></div>
     </div>
 
     <div class="tab-pane" id="tab-analysis">
@@ -761,10 +813,10 @@ function finishProgress() {
 
 /* ── Loading steps ── */
 const STEPS = [
-  'Scraping website',
-  'Analyzing company intelligence',
-  'Generating campaigns and emails',
-  'Building follow-up sequences',
+  'Researching company',
+  'Extracting company intelligence',
+  'Building buyer profile',
+  'Generating outreach campaigns',
   'Assembling your kit',
 ];
 let stepIdx = 0, stepTimer = null;
@@ -837,7 +889,8 @@ function renderResults(data) {
   document.getElementById('results').style.display = 'block';
   renderSummary(data);
   renderCampaigns(data.campaigns || []);
-  renderBrief(data.brief || '');
+  renderICP(data.icp_profile || {}, data);
+  renderIntel(data.brief || '');
   renderAnalysis(data.company_analysis || '');
   const cached = data.from_cache ? ' · cached' : '';
   const selCtx = data.has_seller_context ? ' · seller context applied' : '';
@@ -1012,9 +1065,87 @@ function renderCampaigns(campaigns) {
   }).join('');
 }
 
-/* ── Brief ── */
-function renderBrief(text) {
-  const el = document.getElementById('briefContent');
+/* ── ICP & Targeting ── */
+function renderICP(icp, data) {
+  const el = document.getElementById('icpContent');
+  if (!icp || Object.keys(icp).length === 0) {
+    el.innerHTML = '<p style="color:var(--text-muted);padding:24px 0;">ICP data not available.</p>';
+    return;
+  }
+
+  const titles     = Array.isArray(icp.target_titles)     ? icp.target_titles     : [];
+  const industries = Array.isArray(icp.target_industries) ? icp.target_industries : [];
+  const signals    = Array.isArray(icp.key_signals)       ? icp.key_signals       : [];
+  const linkedinCount = icp.linkedin_profiles_analyzed || 0;
+
+  const linkedinNote = linkedinCount > 0
+    ? `<div class="icp-note">🔗 ICP refined using ${linkedinCount} sample buyer profile${linkedinCount > 1 ? 's' : ''}</div>`
+    : '';
+
+  const titlesHTML = titles.length
+    ? titles.map(t => `<span class="tag tag-blue">${esc(t)}</span>`).join('')
+    : '<span class="tag tag-gray">Not available</span>';
+
+  const industriesHTML = industries.length
+    ? industries.map(i => `<span class="tag tag-purple">${esc(i)}</span>`).join('')
+    : '<span class="tag tag-gray">Not available</span>';
+
+  const signalsHTML = signals.length
+    ? `<ul class="icp-signal-list">${signals.map(s => `<li><span class="signal-dot"></span><span>${esc(s)}</span></li>`).join('')}</ul>`
+    : '<p class="field-body">Not available</p>';
+
+  el.innerHTML = `
+    ${linkedinNote}
+
+    <div class="icp-grid">
+      <div class="icp-block">
+        <div class="field-cap">TARGET JOB TITLES</div>
+        <div class="tags-row" style="margin-top:6px;">${titlesHTML}</div>
+      </div>
+      <div class="icp-block">
+        <div class="field-cap">TARGET INDUSTRIES</div>
+        <div class="tags-row" style="margin-top:6px;">${industriesHTML}</div>
+      </div>
+      <div class="icp-block">
+        <div class="field-cap">COMPANY SIZE</div>
+        <div class="field-body" style="margin-top:6px;">${esc(icp.company_size || 'Not specified')}</div>
+      </div>
+      <div class="icp-block">
+        <div class="field-cap">KEY BUYING SIGNALS</div>
+        <div style="margin-top:6px;">${signalsHTML}</div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="field-block">
+      <div class="field-cap">Apollo Search Query</div>
+      <div class="code-block">
+        <button class="code-copy" onclick="copyText(event, ${JSON.stringify(icp.apollo_search||'')})">Copy</button>
+        ${esc(icp.apollo_search || 'Not available')}
+      </div>
+    </div>
+
+    <div class="field-block">
+      <div class="field-cap">LinkedIn Sales Navigator Search</div>
+      <div class="code-block">
+        <button class="code-copy" onclick="copyText(event, ${JSON.stringify(icp.linkedin_search||'')})">Copy</button>
+        ${esc(icp.linkedin_search || 'Not available')}
+      </div>
+    </div>
+
+    ${icp.icp_reasoning ? `
+    <hr class="divider">
+    <div class="field-block">
+      <div class="field-cap">ICP Reasoning</div>
+      <div class="field-body">${esc(icp.icp_reasoning)}</div>
+    </div>` : ''}
+  `;
+}
+
+/* ── Company Intel ── */
+function renderIntel(text) {
+  const el = document.getElementById('intelContent');
   // Parse into sections
   const parts = text.split(/\n(?=## )/);
   let html = '';
@@ -1041,7 +1172,7 @@ function renderAnalysis(text) {
   const ORDER = [
     'COMPANY NAME','ONE-LINER','WHO THEY SERVE','NAMED CUSTOMERS',
     'CASE STUDIES','KEY VALUE PROPOSITIONS','PROOF POINTS',
-    'PRICING MODEL','RECENT NEWS OR BLOG HIGHLIGHTS','GTM MOTION'
+    'PRICING MODEL','RECENT NEWS OR BLOG HIGHLIGHTS','GTM MOTION','LIKELY BUYERS'
   ];
   let html = '';
   const rendered = new Set();

@@ -94,6 +94,13 @@ Any recent announcements, product launches, blog post topics, or company news fo
 
 ## GTM MOTION
 Analyze whether this company uses Product-Led Growth (PLG), Sales-Led, or a Hybrid approach. Look for signals like: free trial/freemium CTAs (PLG), "Get a demo" / "Contact sales" CTAs (Sales-Led), community size, enterprise compliance badges (SOC 2, GDPR), dedicated enterprise pages, self-serve signup flows. Explain your reasoning with specific evidence from the website.
+
+## LIKELY BUYERS
+Based on the website content, case studies, testimonials, and "who we serve" sections, identify:
+- The job titles most likely to purchase this type of product (e.g., VP Sales, Head of Marketing, CTO)
+- The departments involved in the buying decision
+- The seniority level of the typical buyer
+- Any specific buyer personas mentioned on the site (e.g., "sales leaders at B2B SaaS companies")
 """
 
 
@@ -106,7 +113,102 @@ def analyze_company(scraped_data: dict) -> str:
 
 
 # ============================================================
-# STEP 2: Offer Recommendation + Multi-Campaign Emails
+# STEP 2: ICP Profile Generation
+# ============================================================
+
+ICP_SYSTEM = """You are an ICP (Ideal Customer Profile) specialist helping B2B sales teams define hyper-specific buyer profiles for outbound prospecting. You output precise, immediately actionable targeting criteria."""
+
+ICP_PROMPT = """Based on the company analysis below, generate a structured ICP profile that a sales rep can use immediately for prospecting.
+
+COMPANY ANALYSIS:
+{company_analysis}
+
+{seller_section}
+
+{linkedin_section}
+
+Generate a structured ICP profile in this exact JSON format:
+
+```json
+{{
+  "target_titles": ["3-5 specific job titles ordered by priority. Be exact: 'VP of Sales Development' not 'sales leader'. Base these on who would champion or purchase the seller's product at this type of company."],
+  "target_industries": ["2-4 specific industries. Examples: 'B2B SaaS', 'Sales Technology', 'Revenue Operations'"],
+  "company_size": "Specific headcount range based on the target company's customer base. Example: '50-500 employees'",
+  "key_signals": ["3-4 specific buying signals. Examples: 'Actively hiring SDR managers (job postings)', 'Announced Series B or later funding', 'Using Salesforce or HubSpot (tech stack signal)', 'VP of Sales hired in last 6 months'"],
+  "apollo_search": "Ready-to-paste Apollo search. Format exactly as: Title: [comma-separated titles] | Industry: [industries] | Employees: [range] | Keywords: [relevant keywords]",
+  "linkedin_search": "Ready-to-paste LinkedIn Sales Navigator search. Format exactly as: Title: [titles] | Industry: [industries] | Company headcount: [range] | Geography: United States | Seniority: [Director, VP, C-Level]",
+  "icp_reasoning": "2-3 sentences explaining why this ICP was chosen based on the company's actual customers, case studies, and GTM motion.",
+  "linkedin_profiles_analyzed": 0
+}}
+```
+
+Rules:
+- Be hyper-specific. Every field should be immediately usable without editing.
+- Base job titles on who would actually buy or champion the seller's specific product.
+- Base industries on who the target company actually serves (their customers).
+- Search queries must be copy-pasteable with no placeholders.
+- If LinkedIn profile URLs were provided, set linkedin_profiles_analyzed to the count and refine titles/industries based on URL slug patterns (names, companies visible in URLs).
+
+Return ONLY the JSON. No other text."""
+
+
+def _extract_linkedin_urls(buyer_persona: str) -> list:
+    """Extract LinkedIn URLs from the buyer persona field."""
+    if not buyer_persona:
+        return []
+    import re
+    urls = re.findall(r'https?://(?:www\.)?linkedin\.com/in/[^\s,;]+', buyer_persona)
+    return urls
+
+
+def generate_icp_profile(company_analysis: str, seller_info: dict = None) -> dict:
+    """Generate a structured ICP profile. Returns dict with targeting fields."""
+    seller_section = ""
+    linkedin_section = ""
+
+    if seller_info:
+        parts = []
+        if seller_info.get("what_you_sell"):
+            parts.append(f"PRODUCT BEING SOLD: {seller_info['what_you_sell']}")
+        if seller_info.get("customer_wins"):
+            parts.append(f"SELLER'S PROOF POINTS:\n{seller_info['customer_wins']}")
+        if parts:
+            seller_section = "SELLER CONTEXT:\n" + "\n\n".join(parts)
+
+        linkedin_urls = _extract_linkedin_urls(seller_info.get("buyer_persona", ""))
+        if linkedin_urls:
+            url_list = "\n".join(f"- {u}" for u in linkedin_urls)
+            linkedin_section = f"""SAMPLE BUYER LINKEDIN PROFILES (Option B — URL inference):
+The SDR provided these LinkedIn profile URLs as examples of their ideal buyer. Based on the URL patterns (which often contain the person's name and company slug), infer what you can about the buyer persona — titles, seniority level, company type. Use this to refine the ICP definition and search queries. Set linkedin_profiles_analyzed to {len(linkedin_urls)}.
+
+{url_list}"""
+
+    prompt = ICP_PROMPT.format(
+        company_analysis=company_analysis,
+        seller_section=seller_section,
+        linkedin_section=linkedin_section,
+    )
+
+    raw = _call_claude(ICP_SYSTEM, prompt, max_tokens=2000)
+    data = _parse_json_response(raw)
+
+    if not data:
+        return {
+            "target_titles": [],
+            "target_industries": [],
+            "company_size": "",
+            "key_signals": [],
+            "apollo_search": "",
+            "linkedin_search": "",
+            "icp_reasoning": "",
+            "linkedin_profiles_analyzed": 0,
+        }
+
+    return data
+
+
+# ============================================================
+# STEP 3: Offer Recommendation + Multi-Campaign Emails
 # ============================================================
 
 def _build_seller_context(seller_info: dict) -> str:
@@ -400,7 +502,7 @@ def generate_campaigns(company_analysis: str, seller_info: dict = None) -> dict:
 
 
 # ============================================================
-# STEP 3: Company Brief
+# STEP 4: Company Brief
 # ============================================================
 
 BRIEF_SYSTEM = """You are a B2B sales research analyst creating a one-page company brief for an SDR. The brief should contain everything an SDR needs to have an informed first conversation with someone at this company. Be concise and actionable."""
@@ -463,17 +565,21 @@ Tailor the "Pain Points to Probe" and "Talk Track" to be relevant for someone se
 
 def run_full_pipeline(scraped_data: dict, seller_info: dict = None) -> dict:
     """Run the complete analysis pipeline. Returns all outputs."""
-    # Step 1: Analyze target company
+    # Step 1: Analyze target company (extract intelligence + likely buyers)
     analysis = analyze_company(scraped_data)
 
-    # Step 2: Generate campaigns with offer recommendation
+    # Step 2: Generate ICP profile (structured targeting block)
+    icp_profile = generate_icp_profile(analysis, seller_info)
+
+    # Step 3: Generate campaigns with offer recommendation
     campaign_data = generate_campaigns(analysis, seller_info)
 
-    # Step 3: Generate brief
+    # Step 4: Generate company brief / intel
     brief = generate_brief(analysis, seller_info)
 
     return {
         "company_analysis": analysis,
+        "icp_profile": icp_profile,
         "offer_recommendation": campaign_data.get("offer_recommendation", ""),
         "offer_reasoning": campaign_data.get("offer_reasoning", ""),
         "campaigns": campaign_data.get("campaigns", []),

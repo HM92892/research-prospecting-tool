@@ -1,0 +1,141 @@
+# Research & Prospecting Tool — Functionality Rebuild
+
+This spec covers the logic and backend changes. Apply this AFTER the UI rebuild is done (see the separate UI spec). The core idea: the tool should do more work automatically so the SDR provides less manual input and gets a smarter output.
+
+---
+
+## Current Flow (what exists now)
+
+1. SDR manually types: Company Name, What You Sell, Customer Wins/Proof, Typical Buyer
+2. SDR pastes target company URL
+3. Tool scrapes the URL, sends everything to Claude, gets back: Company Analysis + 3 Campaign Emails + Company Brief
+
+## New Flow (what we're building)
+
+**Step 1: SDR provides minimal input**
+- Target company URL (required)
+- What specific product they're selling (required, short text)
+- Their proof points / customer wins (optional but recommended)
+- 1-3 LinkedIn profile URLs of sample buyers (optional)
+
+**Step 2: Tool automatically extracts from the URL**
+- Company name
+- What the company does (one-liner)
+- Who they serve (industries, segments, company sizes)
+- Named customers with metrics
+- Case studies (problem, result, numbers)
+- Key value propositions
+- Pricing model
+- GTM motion (sales-led vs. product-led)
+- **NEW: Who their buyers likely are** (job titles, departments, seniority levels that would purchase this product, inferred from the website content, case study contacts mentioned, and the "about" or "team" pages)
+
+**Step 3: Tool builds an ICP profile**
+- Based on the scraped company data + the SDR's product + any LinkedIn profiles provided
+- Output a structured ICP definition: target job titles, company size range, industries, keywords, buying signals
+- Generate ready-to-paste search queries for Apollo and LinkedIn Sales Navigator
+- **NEW: If LinkedIn profile URLs were provided**, analyze those profiles to refine the ICP (what titles do these people have, what companies are they at, what size, what industry — use this to make the search queries more precise)
+
+**Step 4: Tool generates personalized outreach**
+- 3 campaign angles (Creative Ideas, Signal-Based, Case Study) — this already works, keep it
+- Each campaign references real case studies and customer names from the scraped data — this already works, keep it
+- Emails, follow-ups, objection analysis — this already works, keep it
+
+---
+
+## Specific Backend Changes
+
+### Change 1: Remove "Company Name" and "Typical Buyer" input fields
+
+The tool should extract the company name directly from the scraped website content. Remove the Company Name input field entirely.
+
+The "Typical Buyer" free-text field is replaced by the LinkedIn profile URL field. If no LinkedIn URLs are provided, the tool should infer likely buyer personas from the website content (who would purchase this product based on the case studies, testimonials, and "who we serve" sections).
+
+### Change 2: Add LinkedIn profile processing
+
+When the SDR provides LinkedIn profile URLs:
+
+**Option A (if we can scrape LinkedIn):** Use an API (Apollo, ScrapIn, or similar) to pull the profile data: name, current title, company, company size, industry. Feed this into the Claude prompt as context for ICP refinement.
+
+**Option B (if we can't scrape LinkedIn yet):** For now, accept the URLs as input and pass them to Claude in the prompt with this instruction: "The user provided these LinkedIn profile URLs as examples of their ideal buyer. Based on the URL patterns (which often contain the person's name and company), infer what you can about the buyer persona. Use this to refine the ICP definition and search queries." This is a temporary solution — the URLs alone give Claude some signal (company names, sometimes job titles from the URL slug).
+
+**Implement Option B for now.** We can upgrade to Option A later when we integrate a scraping API.
+
+### Change 3: Add a dedicated ICP section to the output
+
+Currently the ICP information is scattered inside each campaign card (Target ICP, Apollo Search Query, LinkedIn Sales Nav Search). 
+
+Add a new dedicated section in the output that appears BEFORE the campaigns:
+
+**ICP Profile Block:**
+- **Target Titles:** e.g., "VP Sales, Director of Sales Development, Head of Revenue Operations"
+- **Target Industries:** e.g., "B2B SaaS, AI/ML, Sales Technology"
+- **Company Size:** e.g., "50-500 employees"
+- **Key Signals to Look For:** e.g., "Recently hired SDR team leads, announced Series B+, actively posting about AI adoption"
+- **Apollo Search Query:** (ready to copy-paste, in a code block)
+- **LinkedIn Sales Navigator Search:** (ready to copy-paste, in a code block)
+- If LinkedIn profiles were provided: **"ICP refined using X sample buyer profiles"** note
+
+This ICP section is generated once and applies to all 3 campaigns. The individual campaigns can still have their own more specific targeting notes, but the master ICP lives here.
+
+### Change 4: Update the Claude prompt to extract buyer personas
+
+In the existing prompt that analyzes the scraped website content, add this to the extraction instructions:
+
+```
+10. LIKELY BUYERS:
+Based on the website content, case studies, testimonials, and "who we serve" sections, identify:
+- The job titles most likely to purchase this product (e.g., VP Sales, Head of Marketing, CTO)
+- The departments involved in the buying decision
+- The seniority level of the typical buyer
+- Any specific buyer personas mentioned on the site
+```
+
+This extracted buyer data feeds into the ICP Profile Block and improves campaign targeting.
+
+### Change 5: Add a 3-step progress visualization during generation
+
+When the user clicks "Generate Prospecting Kit," show a visual progress indicator that maps to the 3 steps:
+
+1. **"Researching company..."** (while scraping the website)
+2. **"Building buyer profile..."** (while Claude processes the data and builds the ICP)
+3. **"Generating outreach campaigns..."** (while Claude generates the 3 campaigns)
+
+This can be a simple text update below the button, or a step indicator with checkmarks. The point is to show the user (and anyone watching a demo) that the tool follows a logical workflow, not just "loading..."
+
+If the backend currently makes one big API call that does everything at once, that's fine — you can simulate the steps with timed text updates (show step 1 for 5 seconds, step 2 for 10 seconds, step 3 until done). The visual matters more than the technical accuracy here.
+
+### Change 6: Restructure the output tabs
+
+Current tabs: Campaigns | Company Brief | Raw Analysis
+
+New tabs: **Company Intel | ICP & Targeting | Campaigns | Full Analysis**
+
+- **Company Intel** (was "Company Brief"): The company overview, what they do, their customers, pain points to probe, competitive landscape, talk track
+- **ICP & Targeting** (NEW): The ICP Profile Block from Change 3 — buyer personas, search queries, and targeting logic all in one place
+- **Campaigns**: The 3 campaign angles with emails (same as current)
+- **Full Analysis**: Raw scraped data (same as current "Raw Analysis")
+
+Default active tab: **Campaigns** (most people want to see the emails first)
+
+---
+
+## What NOT to Change
+
+- The website scraping logic (BeautifulSoup, page selection, fallback to G2) — keep as-is
+- The Claude API model and basic prompt structure — only add the new extraction fields described above
+- The 3-campaign generation logic (Creative Ideas, Signal-Based, Case Study) — keep as-is
+- The email format (subject, body, word count, PS line, follow-ups) — keep as-is
+- The "Download as Markdown" export — keep as-is
+
+---
+
+## Summary of Functional Changes
+
+1. Remove "Company Name" input (auto-extracted from URL)
+2. Remove "Typical Buyer" free-text input (replaced by LinkedIn URLs + auto-inference)
+3. Add LinkedIn profile URL input field (accepts 1-3 URLs)
+4. Pass LinkedIn URLs to Claude for ICP refinement (Option B — URL-based inference for now)
+5. Add buyer persona extraction to the website analysis prompt
+6. Add dedicated ICP & Targeting section to the output
+7. Add 3-step progress visualization during generation
+8. Restructure tabs: Company Intel | ICP & Targeting | Campaigns | Full Analysis
