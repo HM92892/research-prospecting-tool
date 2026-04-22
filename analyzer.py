@@ -8,6 +8,8 @@ import anthropic
 import os
 import json
 import re
+import urllib.request
+import urllib.error
 
 MODEL = "claude-sonnet-4-20250514"
 
@@ -565,6 +567,70 @@ Tailor the "Pain Points to Probe" and "Talk Track" to be relevant for someone se
 
 
 # ============================================================
+# Apollo Prospect Search
+# ============================================================
+
+def search_apollo_prospects(icp_profile: dict) -> list:
+    """
+    Search Apollo.io for real prospects matching the ICP profile.
+    Returns a list of up to 10 prospects, or [] if API key is missing / call fails.
+    Each item: {name, title, company, linkedin_url, city, state, email_status}
+    """
+    api_key = os.environ.get("APOLLO_API_KEY", "").strip()
+    if not api_key:
+        return []
+
+    titles = icp_profile.get("target_titles", [])
+    if not titles:
+        return []
+
+    # Build the request payload
+    payload = {
+        "api_key": api_key,
+        "person_titles": titles[:5],          # max 5 titles for focused results
+        "page": 1,
+        "per_page": 10,
+        "prospected_by_current_team": ["no"],  # only people not yet in CRM
+    }
+
+    # Include industry keywords as organization keyword filters if available
+    industries = icp_profile.get("target_industries", [])
+    if industries:
+        payload["q_organization_keyword_tags"] = industries[:3]
+
+    try:
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.apollo.io/v1/mixed_people/search",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Cache-Control": "no-cache",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError):
+        return []
+
+    prospects = []
+    for person in data.get("people", []):
+        org = person.get("organization") or {}
+        prospects.append({
+            "name":         person.get("name", ""),
+            "title":        person.get("title", ""),
+            "company":      org.get("name", ""),
+            "linkedin_url": person.get("linkedin_url", ""),
+            "city":         person.get("city", ""),
+            "state":        person.get("state", ""),
+            "email_status": person.get("email_status", ""),
+        })
+
+    return prospects
+
+
+# ============================================================
 # Full Pipeline
 # ============================================================
 
@@ -576,6 +642,9 @@ def run_full_pipeline(scraped_data: dict, seller_info: dict = None) -> dict:
     # Step 2: Generate ICP profile (structured targeting block)
     icp_profile = generate_icp_profile(analysis, seller_info)
 
+    # Step 2b: Apollo prospect search (non-blocking — fails silently if key missing or call fails)
+    apollo_prospects = search_apollo_prospects(icp_profile)
+
     # Step 3: Generate campaigns with offer recommendation
     campaign_data = generate_campaigns(analysis, seller_info)
 
@@ -585,6 +654,7 @@ def run_full_pipeline(scraped_data: dict, seller_info: dict = None) -> dict:
     return {
         "company_analysis": analysis,
         "icp_profile": icp_profile,
+        "apollo_prospects": apollo_prospects,
         "offer_recommendation": campaign_data.get("offer_recommendation", ""),
         "offer_reasoning": campaign_data.get("offer_reasoning", ""),
         "campaigns": campaign_data.get("campaigns", []),

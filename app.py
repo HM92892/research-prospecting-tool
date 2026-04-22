@@ -565,6 +565,7 @@ function renderICP(icp, data) {
   const industries = Array.isArray(icp.target_industries) ? icp.target_industries : [];
   const signals    = Array.isArray(icp.key_signals)       ? icp.key_signals       : [];
   const linkedinN  = icp.linkedin_profiles_analyzed || 0;
+  const prospects  = Array.isArray(data.apollo_prospects) ? data.apollo_prospects : [];
 
   const linkedinNote = linkedinN > 0 ? `
     <div class="flex items-center gap-2 bg-[#D3E5EF] text-[#183B56] text-xs font-semibold px-3 py-2 rounded mb-5">
@@ -586,6 +587,57 @@ function renderICP(icp, data) {
           <span>${esc(s)}</span>
         </li>`).join('')}</ul>`
     : '<p class="text-sm text-n-muted">Not available</p>';
+
+  /* ── Prospect table ── */
+  const emailStatusBadge = (status) => {
+    const s = (status || '').toLowerCase();
+    if (s === 'verified')           return tag('verified', 'green');
+    if (s === 'likely to engage')   return tag('likely', 'blue');
+    if (s === 'guessed')            return tag('guessed', 'yellow');
+    return tag(status || 'unknown', 'gray');
+  };
+
+  const prospectsHTML = prospects.length ? `
+    <hr class="border-n-border my-6">
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-n-muted">
+          Sample Prospects from Apollo
+          <span class="ml-2 text-[9px] normal-case font-normal text-n-muted">(${prospects.length} result${prospects.length !== 1 ? 's' : ''} · matched on ICP titles)</span>
+        </div>
+      </div>
+      <div class="overflow-x-auto border border-n-border rounded-md">
+        <table class="w-full text-sm border-collapse">
+          <thead>
+            <tr class="bg-n-block border-b border-n-border">
+              <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Name</th>
+              <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Title</th>
+              <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Company</th>
+              <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Location</th>
+              <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Email</th>
+              <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">LinkedIn</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${prospects.map((p, i) => `
+              <tr class="${i % 2 === 1 ? 'bg-n-block/40' : ''} hover:bg-[#F0F7FF] border-b border-n-border last:border-0 transition-colors">
+                <td class="px-3 py-2.5 font-medium text-n-title whitespace-nowrap">${esc(p.name || '—')}</td>
+                <td class="px-3 py-2.5 text-n-body">${esc(p.title || '—')}</td>
+                <td class="px-3 py-2.5 text-n-body whitespace-nowrap">${esc(p.company || '—')}</td>
+                <td class="px-3 py-2.5 text-n-sec whitespace-nowrap">${esc([p.city, p.state].filter(Boolean).join(', ') || '—')}</td>
+                <td class="px-3 py-2.5">${emailStatusBadge(p.email_status)}</td>
+                <td class="px-3 py-2.5">
+                  ${p.linkedin_url
+                    ? `<a href="${esc(p.linkedin_url)}" target="_blank" rel="noopener"
+                         class="text-n-blue text-xs hover:underline">View ↗</a>`
+                    : '<span class="text-n-muted text-xs">—</span>'}
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[10px] text-n-muted mt-2">Results fetched live from Apollo. Click LinkedIn to view each profile.</p>
+    </div>` : '';
 
   el.innerHTML = `
     ${linkedinNote}
@@ -632,6 +684,8 @@ function renderICP(icp, data) {
       <div class="text-[10px] font-bold uppercase tracking-wide text-n-muted mb-2">ICP Reasoning</div>
       <div class="text-sm text-n-body leading-relaxed">${esc(icp.icp_reasoning)}</div>
     </div>` : ''}
+
+    ${prospectsHTML}
   `;
 }
 
