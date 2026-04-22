@@ -591,10 +591,12 @@ def search_apollo_prospects(icp_profile: dict) -> dict:
     """
     api_key = os.environ.get("APOLLO_API_KEY", "").strip()
     if not api_key:
+        print("[Apollo] APOLLO_API_KEY not set — skipping prospect search", flush=True)
         return {"total_found": 0, "prospects": [], "no_key": True}
 
     titles = icp_profile.get("target_titles", [])
     if not titles:
+        print("[Apollo] No target_titles in ICP profile — skipping", flush=True)
         return {"total_found": 0, "prospects": [], "no_key": False}
 
     # Build the request payload using ICP structured fields
@@ -615,24 +617,63 @@ def search_apollo_prospects(icp_profile: dict) -> dict:
     if industries:
         payload["q_keywords"] = " ".join(industries[:3])
 
-    try:
-        body = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            "https://api.apollo.io/api/v1/mixed_people/api_search",
-            data=body,
-            headers={
-                "Content-Type": "application/json",
-                "X-Api-Key": api_key,
-                "Cache-Control": "no-cache",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            resp_data = json.loads(resp.read().decode("utf-8"))
-    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError):
-        return {"total_found": 0, "prospects": [], "no_key": False}
+    print(f"[Apollo] Sending request — titles: {titles[:5]}, size: {size_str}, industries: {industries[:3]}", flush=True)
+
+    # Apollo v1 requires the api_key in the request body (not just a header).
+    # We also include the X-Api-Key header as a fallback.
+    payload["api_key"] = api_key
+
+    # Use browser-like headers to avoid Cloudflare bot-detection blocking.
+    request_headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Api-Key": api_key,
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Cache-Control": "no-cache",
+    }
+
+    resp_data = None
+    plan_restricted = False
+
+    for url in [
+        "https://api.apollo.io/v1/mixed_people/search",
+        "https://api.apollo.io/api/v1/mixed_people/api_search",
+    ]:
+        try:
+            body_bytes = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(url, data=body_bytes, headers=request_headers, method="POST")
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw = resp.read().decode("utf-8")
+                resp_data = json.loads(raw)
+                print(f"[Apollo] {url} → HTTP 200, people: {len(resp_data.get('people', []))}", flush=True)
+                break
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode("utf-8")[:500]
+            except Exception:
+                pass
+            print(f"[Apollo] {url} → HTTP {e.code}: {err_body[:200]}", flush=True)
+            # Detect plan-level restriction specifically
+            if e.code == 403 and ("free plan" in err_body.lower() or "API_INACCESSIBLE" in err_body):
+                plan_restricted = True
+                break  # No point trying the other endpoint
+        except urllib.error.URLError as e:
+            print(f"[Apollo] {url} → URLError: {e.reason}", flush=True)
+        except Exception as e:
+            print(f"[Apollo] {url} → Error: {type(e).__name__}: {e}", flush=True)
+
+    if resp_data is None:
+        reason = "plan_restricted" if plan_restricted else "api_error"
+        print(f"[Apollo] Returning empty ({reason})", flush=True)
+        return {"total_found": 0, "prospects": [], "no_key": False, "plan_restricted": plan_restricted}
 
     total_found = (resp_data.get("pagination") or {}).get("total_entries", 0)
+    print(f"[Apollo] total_entries={total_found}, people_in_response={len(resp_data.get('people', []))}", flush=True)
 
     prospects = []
     for person in resp_data.get("people", []):
@@ -649,6 +690,7 @@ def search_apollo_prospects(icp_profile: dict) -> dict:
             "email_status":     person.get("email_status", ""),
         })
 
+    print(f"[Apollo] Returning {len(prospects)} prospects", flush=True)
     return {"total_found": total_found, "prospects": prospects, "no_key": False}
 
 

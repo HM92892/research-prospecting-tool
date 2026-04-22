@@ -566,12 +566,13 @@ function renderICP(icp, data) {
   const industries = Array.isArray(icp.target_industries) ? icp.target_industries : [];
   const signals    = Array.isArray(icp.key_signals)       ? icp.key_signals       : [];
   const linkedinN    = icp.linkedin_profiles_analyzed || 0;
-  const apolloData   = (data.apollo_prospects && typeof data.apollo_prospects === 'object' && !Array.isArray(data.apollo_prospects))
-                       ? data.apollo_prospects
-                       : { total_found: 0, prospects: [], no_key: false };
-  const prospects    = Array.isArray(apolloData.prospects) ? apolloData.prospects : [];
-  const totalFound   = apolloData.total_found || 0;
-  const noKey        = apolloData.no_key === true;
+  const apolloData      = (data.apollo_prospects && typeof data.apollo_prospects === 'object' && !Array.isArray(data.apollo_prospects))
+                          ? data.apollo_prospects
+                          : { total_found: 0, prospects: [], no_key: false };
+  const prospects       = Array.isArray(apolloData.prospects) ? apolloData.prospects : [];
+  const totalFound      = apolloData.total_found || 0;
+  const noKey           = apolloData.no_key === true;
+  const planRestricted  = apolloData.plan_restricted === true;
 
   const linkedinNote = linkedinN > 0 ? `
     <div class="flex items-center gap-2 bg-[#D3E5EF] text-[#183B56] text-xs font-semibold px-3 py-2 rounded mb-5">
@@ -655,6 +656,20 @@ function renderICP(icp, data) {
         </table>
       </div>
       <p class="text-[10px] text-n-muted mt-2">Results fetched live from Apollo based on ICP titles and industries. Click LinkedIn to view each profile.</p>
+    </div>`;
+  } else if (planRestricted) {
+    prospectsHTML = `
+    <hr class="border-n-border my-6">
+    <div class="flex gap-3 items-start bg-[#FDECC8] border border-[#f0d8a0] rounded-md px-4 py-3.5">
+      <span class="text-base flex-shrink-0">⚠️</span>
+      <div>
+        <div class="text-sm font-semibold text-[#5C3B00] mb-0.5">Apollo plan upgrade required</div>
+        <div class="text-xs text-[#7a4f00] leading-relaxed">
+          Your Apollo API key is connected, but the People Search API requires a paid plan.
+          Upgrade at <a href="https://app.apollo.io" target="_blank" rel="noopener" class="underline font-medium">app.apollo.io</a> to enable live prospect fetching.
+          The ICP profile and search queries above are ready to use manually in Apollo in the meantime.
+        </div>
+      </div>
     </div>`;
   } else if (noKey) {
     prospectsHTML = `
