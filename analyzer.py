@@ -570,64 +570,86 @@ Tailor the "Pain Points to Probe" and "Talk Track" to be relevant for someone se
 # Apollo Prospect Search
 # ============================================================
 
-def search_apollo_prospects(icp_profile: dict) -> list:
+def parse_company_size(size_string: str) -> str:
+    """
+    Converts ICP company size like '100-2000 employees' into Apollo
+    employee range format '100,2000'.
+    """
+    numbers = re.findall(r'\d+', size_string or "")
+    if len(numbers) >= 2:
+        return f"{numbers[0]},{numbers[1]}"
+    elif len(numbers) == 1:
+        return f"{numbers[0]},10000"
+    return "50,1000"
+
+
+def search_apollo_prospects(icp_profile: dict) -> dict:
     """
     Search Apollo.io for real prospects matching the ICP profile.
-    Returns a list of up to 10 prospects, or [] if API key is missing / call fails.
-    Each item: {name, title, company, linkedin_url, city, state, email_status}
+    Returns {total_found, prospects, no_key}.
+    Prospects list contains up to 25 items; never raises — fails silently.
     """
     api_key = os.environ.get("APOLLO_API_KEY", "").strip()
     if not api_key:
-        return []
+        return {"total_found": 0, "prospects": [], "no_key": True}
 
     titles = icp_profile.get("target_titles", [])
     if not titles:
-        return []
+        return {"total_found": 0, "prospects": [], "no_key": False}
 
-    # Build the request payload
+    # Build the request payload using ICP structured fields
     payload = {
-        "api_key": api_key,
-        "person_titles": titles[:5],          # max 5 titles for focused results
         "page": 1,
-        "per_page": 10,
-        "prospected_by_current_team": ["no"],  # only people not yet in CRM
+        "per_page": 25,
+        "person_titles": titles[:5],
+        "person_seniorities": ["vp", "director", "head", "manager", "c_suite"],
     }
 
-    # Include industry keywords as organization keyword filters if available
+    # Employee range from ICP company size
+    size_str = icp_profile.get("company_size", "")
+    if size_str:
+        payload["organization_num_employees_ranges"] = [parse_company_size(size_str)]
+
+    # Industry keywords
     industries = icp_profile.get("target_industries", [])
     if industries:
-        payload["q_organization_keyword_tags"] = industries[:3]
+        payload["q_keywords"] = " ".join(industries[:3])
 
     try:
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
-            "https://api.apollo.io/v1/mixed_people/search",
+            "https://api.apollo.io/api/v1/mixed_people/api_search",
             data=body,
             headers={
                 "Content-Type": "application/json",
+                "X-Api-Key": api_key,
                 "Cache-Control": "no-cache",
             },
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            resp_data = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError):
-        return []
+        return {"total_found": 0, "prospects": [], "no_key": False}
+
+    total_found = (resp_data.get("pagination") or {}).get("total_entries", 0)
 
     prospects = []
-    for person in data.get("people", []):
+    for person in resp_data.get("people", []):
         org = person.get("organization") or {}
+        location_parts = [person.get("city", ""), person.get("state", "")]
         prospects.append({
-            "name":         person.get("name", ""),
-            "title":        person.get("title", ""),
-            "company":      org.get("name", ""),
-            "linkedin_url": person.get("linkedin_url", ""),
-            "city":         person.get("city", ""),
-            "state":        person.get("state", ""),
-            "email_status": person.get("email_status", ""),
+            "name":             person.get("name", ""),
+            "title":            person.get("title", ""),
+            "company":          org.get("name", ""),
+            "company_size":     org.get("estimated_num_employees") or "",
+            "company_website":  org.get("website_url", ""),
+            "linkedin_url":     person.get("linkedin_url", ""),
+            "location":         ", ".join(p for p in location_parts if p),
+            "email_status":     person.get("email_status", ""),
         })
 
-    return prospects
+    return {"total_found": total_found, "prospects": prospects, "no_key": False}
 
 
 # ============================================================

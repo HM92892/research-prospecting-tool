@@ -332,6 +332,7 @@ const STEPS = [
   'Researching company',
   'Extracting company intelligence',
   'Building buyer profile',
+  'Finding matching prospects',
   'Generating outreach campaigns',
   'Assembling your kit',
 ];
@@ -564,8 +565,13 @@ function renderICP(icp, data) {
   const titles     = Array.isArray(icp.target_titles)     ? icp.target_titles     : [];
   const industries = Array.isArray(icp.target_industries) ? icp.target_industries : [];
   const signals    = Array.isArray(icp.key_signals)       ? icp.key_signals       : [];
-  const linkedinN  = icp.linkedin_profiles_analyzed || 0;
-  const prospects  = Array.isArray(data.apollo_prospects) ? data.apollo_prospects : [];
+  const linkedinN    = icp.linkedin_profiles_analyzed || 0;
+  const apolloData   = (data.apollo_prospects && typeof data.apollo_prospects === 'object' && !Array.isArray(data.apollo_prospects))
+                       ? data.apollo_prospects
+                       : { total_found: 0, prospects: [], no_key: false };
+  const prospects    = Array.isArray(apolloData.prospects) ? apolloData.prospects : [];
+  const totalFound   = apolloData.total_found || 0;
+  const noKey        = apolloData.no_key === true;
 
   const linkedinNote = linkedinN > 0 ? `
     <div class="flex items-center gap-2 bg-[#D3E5EF] text-[#183B56] text-xs font-semibold px-3 py-2 rounded mb-5">
@@ -597,14 +603,21 @@ function renderICP(icp, data) {
     return tag(status || 'unknown', 'gray');
   };
 
-  const prospectsHTML = prospects.length ? `
+  /* Build the prospects section — three possible states:
+     1. Prospects found → table with count header
+     2. API key missing → "connect your key" info box
+     3. API returned 0 results → subtle empty note              */
+  let prospectsHTML = '';
+  if (prospects.length > 0) {
+    const totalLabel = totalFound > prospects.length
+      ? `Showing ${prospects.length} of ${totalFound.toLocaleString()} matching prospects`
+      : `${prospects.length} prospect${prospects.length !== 1 ? 's' : ''} matching your ICP`;
+    prospectsHTML = `
     <hr class="border-n-border my-6">
     <div>
       <div class="flex items-center justify-between mb-3">
-        <div class="text-[10px] font-bold uppercase tracking-wide text-n-muted">
-          Sample Prospects from Apollo
-          <span class="ml-2 text-[9px] normal-case font-normal text-n-muted">(${prospects.length} result${prospects.length !== 1 ? 's' : ''} · matched on ICP titles)</span>
-        </div>
+        <div class="text-[10px] font-bold uppercase tracking-wide text-n-muted">Matching Prospects</div>
+        <div class="text-xs text-n-sec">${totalLabel}</div>
       </div>
       <div class="overflow-x-auto border border-n-border rounded-md">
         <table class="w-full text-sm border-collapse">
@@ -613,6 +626,7 @@ function renderICP(icp, data) {
               <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Name</th>
               <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Title</th>
               <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Company</th>
+              <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Employees</th>
               <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Location</th>
               <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">Email</th>
               <th class="text-left text-[10px] font-bold uppercase tracking-wide text-n-muted px-3 py-2.5">LinkedIn</th>
@@ -620,24 +634,39 @@ function renderICP(icp, data) {
           </thead>
           <tbody>
             ${prospects.map((p, i) => `
-              <tr class="${i % 2 === 1 ? 'bg-n-block/40' : ''} hover:bg-[#F0F7FF] border-b border-n-border last:border-0 transition-colors">
+              <tr class="${i % 2 === 1 ? 'even:bg-gray-50' : ''} hover:bg-[#F0F7FF] border-b border-n-border last:border-0 transition-colors">
                 <td class="px-3 py-2.5 font-medium text-n-title whitespace-nowrap">${esc(p.name || '—')}</td>
                 <td class="px-3 py-2.5 text-n-body">${esc(p.title || '—')}</td>
-                <td class="px-3 py-2.5 text-n-body whitespace-nowrap">${esc(p.company || '—')}</td>
-                <td class="px-3 py-2.5 text-n-sec whitespace-nowrap">${esc([p.city, p.state].filter(Boolean).join(', ') || '—')}</td>
+                <td class="px-3 py-2.5 text-n-body whitespace-nowrap">
+                  ${p.company_website
+                    ? `<a href="${esc(p.company_website)}" target="_blank" rel="noopener" class="hover:text-n-blue hover:underline">${esc(p.company || '—')}</a>`
+                    : esc(p.company || '—')}
+                </td>
+                <td class="px-3 py-2.5 text-n-sec whitespace-nowrap">${p.company_size ? Number(p.company_size).toLocaleString() : '—'}</td>
+                <td class="px-3 py-2.5 text-n-sec whitespace-nowrap">${esc(p.location || '—')}</td>
                 <td class="px-3 py-2.5">${emailStatusBadge(p.email_status)}</td>
                 <td class="px-3 py-2.5">
                   ${p.linkedin_url
-                    ? `<a href="${esc(p.linkedin_url)}" target="_blank" rel="noopener"
-                         class="text-n-blue text-xs hover:underline">View ↗</a>`
+                    ? `<a href="${esc(p.linkedin_url)}" target="_blank" rel="noopener" class="text-n-blue text-xs font-medium hover:underline">View ↗</a>`
                     : '<span class="text-n-muted text-xs">—</span>'}
                 </td>
               </tr>`).join('')}
           </tbody>
         </table>
       </div>
-      <p class="text-[10px] text-n-muted mt-2">Results fetched live from Apollo. Click LinkedIn to view each profile.</p>
-    </div>` : '';
+      <p class="text-[10px] text-n-muted mt-2">Results fetched live from Apollo based on ICP titles and industries. Click LinkedIn to view each profile.</p>
+    </div>`;
+  } else if (noKey) {
+    prospectsHTML = `
+    <hr class="border-n-border my-6">
+    <div class="flex gap-3 items-start bg-[#F7F6F3] border border-n-border rounded-md px-4 py-3.5">
+      <span class="text-base flex-shrink-0">🔍</span>
+      <div>
+        <div class="text-sm font-semibold text-n-body mb-0.5">Find real prospects matching this ICP</div>
+        <div class="text-xs text-n-sec leading-relaxed">Connect your Apollo API key to automatically pull matching prospects. In Replit, open <strong>Secrets</strong> and add <code class="bg-white border border-n-border rounded px-1 py-0.5 text-[11px]">APOLLO_API_KEY</code> with your key.</div>
+      </div>
+    </div>`;
+  }
 
   el.innerHTML = `
     ${linkedinNote}
