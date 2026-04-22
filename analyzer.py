@@ -93,7 +93,12 @@ How they charge (per seat, usage-based, freemium, enterprise only, etc.) if visi
 Any recent announcements, product launches, blog post topics, or company news found on the site. Pick the 2-3 MOST RECENT items and note what they are about. If none, write "Not found on website."
 
 ## GTM MOTION
-Analyze whether this company uses Product-Led Growth (PLG), Sales-Led, or a Hybrid approach. Look for signals like: free trial/freemium CTAs (PLG), "Get a demo" / "Contact sales" CTAs (Sales-Led), community size, enterprise compliance badges (SOC 2, GDPR), dedicated enterprise pages, self-serve signup flows. Explain your reasoning with specific evidence from the website.
+Start your answer with EXACTLY one of these labels on the first line — do not add any other words on that line:
+Sales-Led
+Product-Led (PLG)
+Hybrid
+
+Then on the following lines, explain your reasoning with specific evidence from the website. Look for signals like: free trial/freemium CTAs (PLG), "Get a demo" / "Contact sales" CTAs (Sales-Led), community size, enterprise compliance badges (SOC 2, GDPR), dedicated enterprise pages, self-serve signup flows.
 
 ## LIKELY BUYERS
 Based on the website content, case studies, testimonials, and "who we serve" sections, identify:

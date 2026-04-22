@@ -271,10 +271,21 @@ function parseAnalysisSections(text) {
   return out;
 }
 function getGTMInfo(text) {
-  const t = (text||'').toLowerCase();
-  if (t.includes('product-led') || t.includes('plg') || t.includes('self-serve'))
-    return { label:'Product-Led (PLG)', color:'green' };
+  // Use the first line of the GTM MOTION field directly (Claude is now instructed
+  // to put exactly one of the three labels on line 1, so this is authoritative).
+  const firstLine = (text||'').split('\n')[0].trim();
+  const t = firstLine.toLowerCase();
+  if (t.includes('product-led') || t.includes('plg'))
+    return { label: firstLine || 'Product-Led (PLG)', color:'green' };
   if (t.includes('sales-led') || t.includes('sales led'))
+    return { label: firstLine || 'Sales-Led', color:'blue' };
+  if (t.includes('hybrid'))
+    return { label: firstLine || 'Hybrid', color:'purple' };
+  // Fallback: still try the full text (for cached/legacy analyses)
+  const full = (text||'').toLowerCase();
+  if (full.includes('product-led') || full.includes('plg') || full.includes('self-serve'))
+    return { label:'Product-Led (PLG)', color:'green' };
+  if (full.includes('sales-led') || full.includes('sales led'))
     return { label:'Sales-Led', color:'blue' };
   return { label:'Hybrid', color:'purple' };
 }
@@ -416,17 +427,6 @@ function renderSummary(data) {
   const caseCt    = countItems(s['CASE STUDIES'] || '');
   const proofCt   = countItems(s['PROOF POINTS'] || '');
 
-  let offerHTML = '';
-  if (data.offer_recommendation) {
-    const isSQL = data.offer_recommendation.toUpperCase().includes('SQL');
-    const offerColor = isSQL ? 'blue' : 'green';
-    offerHTML = `<div class="mt-3 flex items-center gap-2 flex-wrap">
-      <span class="text-xs font-semibold text-n-muted">Recommended:</span>
-      ${tag(data.offer_recommendation, offerColor)}
-      <span class="text-xs text-n-sec">${esc(data.offer_reasoning||'')}</span>
-    </div>`;
-  }
-
   document.getElementById('summaryCallout').innerHTML = `
     <div class="w-1 bg-n-blue flex-shrink-0"></div>
     <div class="p-5 flex-1">
@@ -439,7 +439,6 @@ function renderSummary(data) {
         ${proofCt ? `<span class="text-n-muted text-xs">·</span>${tag(proofCt+' proof points','gray')}`   : ''}
       </div>
       ${serve ? `<p class="text-xs text-n-sec mt-2"><strong class="text-n-body font-semibold">Serves:</strong> ${esc(serve.split('\n')[0])}</p>` : ''}
-      ${offerHTML}
     </div>`;
 }
 
@@ -629,9 +628,8 @@ function renderICP(icp, data) {
     </div>
 
     ${icp.icp_reasoning ? `
-    <hr class="border-n-border my-6">
-    <div>
-      <div class="text-[10px] font-bold uppercase tracking-wide text-n-muted mb-1.5">ICP Reasoning</div>
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
+      <div class="text-[10px] font-bold uppercase tracking-wide text-n-muted mb-2">ICP Reasoning</div>
       <div class="text-sm text-n-body leading-relaxed">${esc(icp.icp_reasoning)}</div>
     </div>` : ''}
   `;
