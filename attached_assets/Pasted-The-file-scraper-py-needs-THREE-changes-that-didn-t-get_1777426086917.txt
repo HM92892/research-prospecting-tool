@@ -1,0 +1,82 @@
+The file scraper.py needs THREE changes that didn't get applied earlier. Make ONLY these three changes to scraper.py. Do not touch any other file. Do not add features. Do not refactor.
+
+---
+
+CHANGE A — Replace the SUBPAGES list. Find:
+
+SUBPAGES = [
+    "/about", "/about-us", "/customers", "/case-studies", "/case-study",
+    "/success-stories", "/testimonials", "/clients", "/why-us", "/solutions",
+    "/pricing", "/blog", "/news", "/newsroom", "/press", "/resources"
+]
+
+Replace with:
+
+SUBPAGES = [
+    "/about", "/about-us", "/customers", "/case-studies", "/case-study",
+    "/success-stories", "/testimonials", "/clients", "/why-us", "/solutions",
+    "/pricing", "/blog", "/news", "/newsroom", "/press", "/resources",
+    "/careers", "/jobs", "/team", "/company"
+]
+
+---
+
+CHANGE B — Add cache quality check. Find this block at the END of the scrape_website function:
+
+    # Save to cache
+    _save_cache(url, result)
+
+    return result
+
+Replace with:
+
+    # Only cache if we got meaningful content. Thin scrapes shouldn't poison cache.
+    if result["total_chars"] >= 2000:
+        _save_cache(url, result)
+
+    return result
+
+---
+
+CHANGE C — Parallelize the subpage scraping.
+
+Step 1: At the top of scraper.py, after the existing imports (after the `import time` line), add this import:
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+Step 2: After the _fetch_page function definition, add this new helper function:
+
+def _scrape_one_subpage(base_url: str, path: str):
+    """Helper for parallel subpage scraping. Returns (path, text) or None."""
+    subpage_url = urljoin(base_url, path)
+    html = _fetch_page(subpage_url, timeout=10)
+    if html:
+        text = _extract_text(html)
+        if len(text) > 200:
+            return (path, text)
+    return None
+
+Step 3: Inside the scrape_website function, find this for loop:
+
+    # Scrape subpages
+    for path in SUBPAGES:
+        subpage_url = urljoin(base_url, path)
+        html = _fetch_page(subpage_url, timeout=10)
+        if html:
+            text = _extract_text(html)
+            if len(text) > 200:  # Only keep if meaningful content
+                subpages_found[path] = text
+
+Replace it with:
+
+    # Scrape subpages in parallel for speed
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(_scrape_one_subpage, base_url, p) for p in SUBPAGES]
+        for future in as_completed(futures):
+            result_pair = future.result()
+            if result_pair:
+                subpages_found[result_pair[0]] = result_pair[1]
+
+---
+
+After making the three changes, confirm by running scraper.py once on a test URL and reporting that the SUBPAGES list now has 20 entries.
