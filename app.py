@@ -88,7 +88,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <section class="pt-16 pb-12 border-b border-n-border">
     <p class="text-[10px] font-bold uppercase tracking-widest text-n-muted mb-3">AI-Powered SDR Tool</p>
     <h1 class="text-[32px] font-bold text-n-title tracking-tight leading-tight mb-2.5">Research &amp; Prospecting Tool</h1>
-    <p class="text-base text-n-sec max-w-xl mb-10">Paste a company URL. Get full company intelligence, buyer profiles, and personalized outreach in seconds.</p>
+    <p class="text-base text-n-sec max-w-xl mb-10">Paste a URL. Get the brief, the offers, and the emails.</p>
 
     <div class="grid gap-0 items-center" style="grid-template-columns: 1fr 28px 1fr 28px 1fr;">
       <div class="bg-n-block rounded-md p-3.5">
@@ -125,6 +125,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         placeholder="https://www.company.com"
         class="w-full px-3 py-2 border border-n-border rounded-md text-sm text-n-body placeholder-[#C4C4C0] focus:outline-none focus:border-n-blue focus:ring-2 focus:ring-[#2383E2]/10 transition-colors" />
       <p class="text-xs text-n-muted">We'll scrape their site to extract customers, case studies, and GTM signals automatically.</p>
+      <div class="flex items-center gap-2 mt-2 flex-wrap">
+        <span class="text-[10px] font-bold uppercase tracking-wide text-n-muted">Try:</span>
+        <button onclick="setUrl('https://www.keyplay.io')" class="px-3 py-1 text-xs bg-n-block border border-n-border rounded text-n-sec hover:border-n-blue hover:text-n-body transition-colors">keyplay.io</button>
+        <button onclick="setUrl('https://www.ramp.com')" class="px-3 py-1 text-xs bg-n-block border border-n-border rounded text-n-sec hover:border-n-blue hover:text-n-body transition-colors">ramp.com</button>
+        <button onclick="setUrl('https://www.gong.io')" class="px-3 py-1 text-xs bg-n-block border border-n-border rounded text-n-sec hover:border-n-blue hover:text-n-body transition-colors">gong.io</button>
+      </div>
     </div>
 
     <div class="space-y-1.5">
@@ -180,6 +186,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <!-- ── Results ── -->
   <div id="results" class="hidden">
 
+    <div class="mb-6 pb-5 border-b border-n-border">
+      <h2 class="text-[22px] font-bold text-n-title tracking-tight">Brief for <span id="resultsCompany" class="text-n-blue"></span></h2>
+    </div>
+
     <!-- Company summary callout -->
     <div id="summaryCallout" class="flex rounded-md bg-n-block overflow-hidden mb-8"></div>
 
@@ -218,10 +228,19 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   </div>
 
+  <div class="text-center text-[11px] text-n-muted py-6 mt-4 border-t border-n-border">
+    Powered by Claude Sonnet 4 · approx $0.04 per company · Built by <a href="https://www.linkedin.com/in/hamza-munif/" target="_blank" rel="noopener" class="text-n-sec hover:text-n-blue transition-colors">Hamza Munif</a> · <a href="https://github.com/HM92892/research-prospecting-tool" target="_blank" rel="noopener" class="text-n-sec hover:text-n-blue transition-colors">GitHub</a>
+  </div>
+
 </div><!-- container -->
 
 <script>
 let currentData = null;
+
+function setUrl(url) {
+  document.getElementById('urlInput').value = url;
+  generate();
+}
 
 /* ── Utilities ── */
 function esc(s) {
@@ -412,6 +431,7 @@ function renderResults(data) {
   const selCtx = data.has_seller_context ? ' · seller context applied' : '';
   document.getElementById('metaText').textContent =
     `${data.pages_scraped} pages scraped · ${(data.chars_scraped||0).toLocaleString()} chars · ${data.duration_seconds}s${cached}${selCtx}`;
+  document.getElementById('resultsCompany').textContent = data.domain || '';
   document.getElementById('resultsFooter').classList.remove('hidden');
   switchTab('campaigns', document.querySelector('.tab-btn'));
 }

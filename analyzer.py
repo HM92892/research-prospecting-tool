@@ -86,9 +86,6 @@ The top 3 specific problems this company solves. Not vague benefits. Specific pr
 ## PROOF POINTS
 Any specific metrics, numbers, or claims. Examples: "50+ data sources", "10,000+ customers", "2x pipeline." List them all.
 
-## PRICING MODEL
-How they charge (per seat, usage-based, freemium, enterprise only, etc.) if visible on the website. If not visible, write "Not found on website."
-
 ## RECENT NEWS OR BLOG HIGHLIGHTS
 Any recent announcements, product launches, blog post topics, or company news found on the site. Pick the 2-3 MOST RECENT items and note what they are about. If none, write "Not found on website."
 

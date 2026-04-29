@@ -1,0 +1,225 @@
+I need you to make 9 specific changes across 3 existing files and create 1 new file. Make ONLY these exact changes. Do not modify anything else, do not refactor, do not "improve" other parts of the code.
+
+---
+
+CHANGE 1 — In app.py, find the header section (around line 132) and replace this exact line:
+
+  <p>Paste a company URL. Get a full prospecting kit.</p>
+
+With:
+
+  <p>Paste a URL. Get the brief, the offers, and the emails.</p>
+
+---
+
+CHANGE 2 — In analyzer.py, find this block in the ANALYSIS_PROMPT and DELETE it entirely (the heading and its description):
+
+## PRICING MODEL
+How they charge (per seat, usage-based, freemium, enterprise only, etc.) if visible on the website. If not visible, write "Not found on website."
+
+---
+
+CHANGE 3 — In scraper.py, replace the SUBPAGES list with:
+
+SUBPAGES = [
+    "/about", "/about-us", "/customers", "/case-studies", "/case-study",
+    "/success-stories", "/testimonials", "/clients", "/why-us", "/solutions",
+    "/pricing", "/blog", "/news", "/newsroom", "/press", "/resources",
+    "/careers", "/jobs", "/team", "/company"
+]
+
+---
+
+CHANGE 4 — In scraper.py, find this block at the end of scrape_website function:
+
+    # Save to cache
+    _save_cache(url, result)
+
+    return result
+
+Replace with:
+
+    # Only cache if we got meaningful content. Thin scrapes shouldn't poison cache.
+    if result["total_chars"] >= 2000:
+        _save_cache(url, result)
+
+    return result
+
+---
+
+CHANGE 5 — In scraper.py, parallelize the subpage scraping. At the top of the file, add this import after the existing imports:
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+Then add this helper function near the top of the file, after the _fetch_page function:
+
+def _scrape_one_subpage(base_url: str, path: str):
+    """Helper for parallel subpage scraping. Returns (path, text) or None."""
+    subpage_url = urljoin(base_url, path)
+    html = _fetch_page(subpage_url, timeout=10)
+    if html:
+        text = _extract_text(html)
+        if len(text) > 200:
+            return (path, text)
+    return None
+
+Then in the scrape_website function, find this for loop:
+
+    # Scrape subpages
+    for path in SUBPAGES:
+        subpage_url = urljoin(base_url, path)
+        html = _fetch_page(subpage_url, timeout=10)
+        if html:
+            text = _extract_text(html)
+            if len(text) > 200:  # Only keep if meaningful content
+                subpages_found[path] = text
+
+Replace it with:
+
+    # Scrape subpages in parallel for speed
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(_scrape_one_subpage, base_url, p) for p in SUBPAGES]
+        for future in as_completed(futures):
+            result_pair = future.result()
+            if result_pair:
+                subpages_found[result_pair[0]] = result_pair[1]
+
+---
+
+CHANGE 6 — In app.py, add example URL chips below the input field.
+
+In the CSS section, find this rule:
+
+  .input-group { display: flex; gap: 12px; margin-bottom: 28px; }
+
+Change its margin-bottom from 28px to 12px:
+
+  .input-group { display: flex; gap: 12px; margin-bottom: 12px; }
+
+Then add these new CSS rules right after the .btn rules:
+
+  .examples { display: flex; gap: 8px; align-items: center; margin-bottom: 28px; flex-wrap: wrap; }
+  .examples-label { font-size: 12px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .example-chip { padding: 6px 14px; font-size: 13px; background: #1a1a1a; color: #aaa; border: 1px solid #333; border-radius: 6px; cursor: pointer; font-family: inherit; }
+  .example-chip:hover { background: #222; color: #fff; border-color: #4f8ff7; }
+
+In the HTML, find this div (the URL input group):
+
+  <div class="input-group">
+    <input type="text" id="urlInput" placeholder="Target company URL (e.g., https://www.ramp.com)" autocomplete="off" />
+    <button class="btn" id="generateBtn" onclick="generate()">Generate</button>
+  </div>
+
+Add this right AFTER the closing </div> of input-group:
+
+  <div class="examples">
+    <span class="examples-label">Try:</span>
+    <button class="example-chip" onclick="setUrl('https://www.keyplay.io')">keyplay.io</button>
+    <button class="example-chip" onclick="setUrl('https://www.ramp.com')">ramp.com</button>
+    <button class="example-chip" onclick="setUrl('https://www.gong.io')">gong.io</button>
+  </div>
+
+In the JavaScript section, add this function near the top of the script (above the generate function):
+
+  function setUrl(url) {
+    document.getElementById('urlInput').value = url;
+    generate();
+  }
+
+---
+
+CHANGE 7 — In app.py, add a results-state hero showing the company name.
+
+In the CSS section, add these rules after the .results rule:
+
+  .results-hero { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #1a1a1a; }
+  .results-hero h2 { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+  .results-hero h2 span { color: #4f8ff7; }
+
+In the HTML, find the opening of the results div:
+
+  <div class="results" id="results">
+
+Add this right AFTER that opening tag, BEFORE the offer-rec banner:
+
+    <div class="results-hero">
+      <h2>Brief for <span id="resultsCompany"></span></h2>
+    </div>
+
+In the JavaScript renderResults function, add this line right after the line "document.getElementById('results').style.display = 'block';":
+
+  document.getElementById('resultsCompany').textContent = data.domain || '';
+
+---
+
+CHANGE 8 — In app.py, add a footer attribution.
+
+In the CSS section, add these rules:
+
+  .footer-attribution { text-align: center; color: #555; font-size: 12px; padding: 24px 0; margin-top: 20px; }
+  .footer-attribution a { color: #888; text-decoration: none; }
+  .footer-attribution a:hover { color: #4f8ff7; }
+
+In the HTML, find the closing tag of the main container (the </div> that closes <div class="container">). Add this RIGHT BEFORE that closing </div>:
+
+  <div class="footer-attribution">
+    Powered by Claude Sonnet 4 · approx $0.04 per company · Built by <a href="https://www.linkedin.com/in/hamza-munif/" target="_blank">Hamza Munif</a> · <a href="https://github.com/HM92892/research-prospecting-tool" target="_blank">GitHub</a>
+  </div>
+
+---
+
+CHANGE 9 — Create a new file at the root of the project called README.md with this exact content:
+
+# Research & Prospecting Tool
+
+A web app that takes a company URL and outputs:
+- An offer recommendation (SQL or MQL) with reasoning
+- 3 cold email campaigns with full follow-up sequences (Creative Ideas, Signal-Based, Case Study)
+- A one-page company brief with a reply talk-track
+
+Built around Eric Nowoslawski's outbound framework: offer beats list, list beats personalization, personalization beats volume.
+
+## Why I built this
+
+I'm interviewing for SDR roles. The hardest part of cold outreach is figuring out what to actually offer a specific company. Most tools optimize the wrong layer, sending more emails or swapping a name token. The real lift is offer quality. I built this to learn that craft.
+
+## How it works
+
+1. You paste a company URL
+2. The scraper hits the homepage and 20 subpages (about, customers, case studies, careers, etc.) in parallel
+3. Claude extracts the company's intelligence: named customers, value props, recent signals, GTM motion
+4. A second Claude call generates 3 campaign types with full follow-up sequences
+5. A third Claude call produces a one-page brief with a reply talk-track
+
+Whole pipeline runs in about 15-30 seconds. Each company costs approximately $0.04 in Claude API calls.
+
+## Stack
+
+- Python 3.11
+- Flask
+- Anthropic Claude Sonnet 4
+- BeautifulSoup + requests for scraping
+
+## Run locally
+
+1. `pip install -r requirements.txt`
+2. Set `ANTHROPIC_API_KEY` in your environment
+3. `python app.py`
+4. Open `http://localhost:5000`
+
+## What I'd add next
+
+- Cold call opener, 30-second pitch, and objection responses per campaign
+- Spam-phrase checker on generated emails
+- A/B variant generation per campaign
+- Tests
+
+---
+
+After making all 9 changes, restart the app and confirm:
+1. The page loads with the new header text
+2. The "Try:" row of chips appears below the URL input and clicking one auto-runs a scrape
+3. Generation completes in noticeably less time than before
+4. After generation, "Brief for [domain]" appears as a hero header above the tabs
+5. The footer with Claude attribution and GitHub link appears at the bottom
+6. README.md exists at the project root

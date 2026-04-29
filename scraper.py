@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -18,7 +19,8 @@ HEADERS = {
 SUBPAGES = [
     "/about", "/about-us", "/customers", "/case-studies", "/case-study",
     "/success-stories", "/testimonials", "/clients", "/why-us", "/solutions",
-    "/pricing", "/blog", "/news", "/newsroom", "/press", "/resources"
+    "/pricing", "/blog", "/news", "/newsroom", "/press", "/resources",
+    "/careers", "/jobs", "/team", "/company"
 ]
 
 CACHE_DIR = ".cache"
@@ -83,6 +85,17 @@ def _fetch_page(url: str, timeout: int = 15) -> str | None:
     return None
 
 
+def _scrape_one_subpage(base_url: str, path: str):
+    """Helper for parallel subpage scraping. Returns (path, text) or None."""
+    subpage_url = urljoin(base_url, path)
+    html = _fetch_page(subpage_url, timeout=10)
+    if html:
+        text = _extract_text(html)
+        if len(text) > 200:
+            return (path, text)
+    return None
+
+
 def scrape_website(url: str, use_cache: bool = True) -> dict | None:
     """
     Scrape a company website: homepage + key subpages.
@@ -117,14 +130,13 @@ def scrape_website(url: str, use_cache: bool = True) -> dict | None:
     homepage_text = _extract_text(homepage_html)
     subpages_found = {}
 
-    # Scrape subpages
-    for path in SUBPAGES:
-        subpage_url = urljoin(base_url, path)
-        html = _fetch_page(subpage_url, timeout=10)
-        if html:
-            text = _extract_text(html)
-            if len(text) > 200:  # Only keep if meaningful content
-                subpages_found[path] = text
+    # Scrape subpages in parallel for speed
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(_scrape_one_subpage, base_url, p) for p in SUBPAGES]
+        for future in as_completed(futures):
+            result_pair = future.result()
+            if result_pair:
+                subpages_found[result_pair[0]] = result_pair[1]
 
     # Combine all text
     all_parts = [f"=== HOMEPAGE ===\n{homepage_text}"]
@@ -146,7 +158,8 @@ def scrape_website(url: str, use_cache: bool = True) -> dict | None:
         "from_cache": False,
     }
 
-    # Save to cache
-    _save_cache(url, result)
+    # Only cache if we got meaningful content. Thin scrapes shouldn't poison cache.
+    if result["total_chars"] >= 2000:
+        _save_cache(url, result)
 
     return result
