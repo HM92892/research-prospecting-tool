@@ -134,6 +134,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 
     <div class="space-y-1.5">
+      <label class="block text-sm font-semibold text-n-body" for="myCompanyInput">
+        Your company URL <span class="text-n-blue">*</span>
+      </label>
+      <input id="myCompanyInput" type="url" autocomplete="off"
+        placeholder="https://www.yourcompany.com"
+        class="w-full px-3 py-2 border border-n-border rounded-md text-sm text-n-body placeholder-[#C4C4C0] focus:outline-none focus:border-n-blue focus:ring-2 focus:ring-[#2383E2]/10 transition-colors" />
+      <p class="text-xs text-n-muted">We'll scrape your site to pull your real customers, case studies, and value props for the campaigns.</p>
+    </div>
+
+    <div class="space-y-1.5">
       <label class="block text-sm font-semibold text-n-body" for="productInput">
         What product are you selling? <span class="text-n-blue">*</span>
       </label>
@@ -371,10 +381,12 @@ function stopSteps() {
 
 /* ── Generate ── */
 async function generate() {
-  const url     = document.getElementById('urlInput').value.trim();
-  const product = document.getElementById('productInput').value.trim();
-  if (!url)     { document.getElementById('urlInput').focus();     return; }
-  if (!product) { document.getElementById('productInput').focus(); return; }
+  const url           = document.getElementById('urlInput').value.trim();
+  const myCompanyUrl  = document.getElementById('myCompanyInput').value.trim();
+  const product       = document.getElementById('productInput').value.trim();
+  if (!url)          { document.getElementById('urlInput').focus();       return; }
+  if (!myCompanyUrl) { document.getElementById('myCompanyInput').focus(); return; }
+  if (!product)      { document.getElementById('productInput').focus();   return; }
 
   const btn      = document.getElementById('generateBtn');
   const errorBox = document.getElementById('errorBox');
@@ -389,7 +401,7 @@ async function generate() {
   startSteps();
 
   try {
-    const payload = { url };
+    const payload = { url, my_company_url: myCompanyUrl };
     const seller = getSellerInfo();
     if (seller) payload.seller_info = seller;
 
@@ -429,8 +441,11 @@ function renderResults(data) {
   renderAnalysis(data.company_analysis || '');
   const cached = data.from_cache ? ' · cached' : '';
   const selCtx = data.has_seller_context ? ' · seller context applied' : '';
+  const sellerMeta = data.seller_pages_scraped
+    ? ` · ${data.seller_pages_scraped} pages from your site (${(data.seller_chars_scraped||0).toLocaleString()} chars)`
+    : '';
   document.getElementById('metaText').textContent =
-    `${data.pages_scraped} pages scraped · ${(data.chars_scraped||0).toLocaleString()} chars · ${data.duration_seconds}s${cached}${selCtx}`;
+    `${data.pages_scraped} pages scraped · ${(data.chars_scraped||0).toLocaleString()} chars · ${data.duration_seconds}s${cached}${selCtx}${sellerMeta}`;
   document.getElementById('resultsCompany').textContent = data.domain || '';
   document.getElementById('resultsFooter').classList.remove('hidden');
   switchTab('campaigns', document.querySelector('.tab-btn'));
@@ -800,10 +815,13 @@ def index():
 def api_generate():
     data = request.get_json()
     url = data.get("url", "").strip()
+    my_company_url = data.get("my_company_url", "").strip()
     seller_info = data.get("seller_info", None)
 
     if not url:
-        return jsonify({"error": "Please enter a URL"}), 400
+        return jsonify({"error": "Please enter a target URL"}), 400
+    if not my_company_url:
+        return jsonify({"error": "Please enter your company URL"}), 400
 
     start = time.time()
 
@@ -812,8 +830,21 @@ def api_generate():
         if not scraped:
             return jsonify({"error": f"Could not scrape {url}. The site may be blocking requests or the URL may be invalid."}), 400
 
+        # Scrape the seller's own company site so campaigns reference real wins, customers, value props
+        seller_scraped = scrape_website(my_company_url)
+        if seller_scraped:
+            if seller_info is None:
+                seller_info = {}
+            if not seller_info.get("company_name"):
+                seller_info["company_name"] = "My Company"
+            seller_info["seller_company_url"] = my_company_url
+            seller_info["seller_company_text"] = seller_scraped["all_text"]
+
         result = run_full_pipeline(scraped, seller_info)
         result["duration_seconds"] = round(time.time() - start, 1)
+        if seller_scraped:
+            result["seller_pages_scraped"] = seller_scraped["pages_found"]
+            result["seller_chars_scraped"] = seller_scraped["total_chars"]
         return jsonify(result)
 
     except ValueError as e:

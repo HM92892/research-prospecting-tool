@@ -1,0 +1,201 @@
+I need to add a new required input field to the tool: "Your company URL" — the URL of the user's own company. This URL gets scraped and the scraped content gets used to inform the campaign generation, so emails reference real customer wins and value props pulled from the seller's own site.
+
+After this change, the form should have FIVE fields in this order:
+1. Target company URL (required)
+2. Your company URL (required, NEW)
+3. What product are you selling? (required)
+4. Your proof points (optional)
+5. Sample buyer LinkedIn profiles (optional)
+
+Make these 5 changes ONLY. Do not touch unrelated code, do not refactor.
+
+---
+
+CHANGE 1 — In app.py, add a new "Your company URL" input field between the Target URL section and the Product field.
+
+Find the closing </div> of the Target URL section (the one that contains the "Try:" chips for keyplay.io / ramp.com / gong.io). Right after that closing </div>, BEFORE the Product field starts, insert this new field:
+
+  <div class="space-y-1.5">
+    <label class="block text-sm font-semibold text-n-body" for="myCompanyInput">
+      Your company URL <span class="text-n-blue">*</span>
+    </label>
+    <input id="myCompanyInput" type="url" autocomplete="off"
+      placeholder="https://www.yourcompany.com"
+      class="w-full px-3 py-2 border border-n-border rounded-md text-sm text-n-body placeholder-[#C4C4C0] focus:outline-none focus:border-n-blue focus:ring-2 focus:ring-[#2383E2]/10 transition-colors" />
+    <p class="text-xs text-n-muted">We'll scrape your site to pull your real customers, case studies, and value props for the campaigns.</p>
+  </div>
+
+---
+
+CHANGE 2 — In app.py, update the JavaScript generate() function to read and validate the new field, and send it in the API payload.
+
+Find this block:
+
+  const url     = document.getElementById('urlInput').value.trim();
+  const product = document.getElementById('productInput').value.trim();
+  if (!url)     { document.getElementById('urlInput').focus();     return; }
+  if (!product) { document.getElementById('productInput').focus(); return; }
+
+Replace it with:
+
+  const url           = document.getElementById('urlInput').value.trim();
+  const myCompanyUrl  = document.getElementById('myCompanyInput').value.trim();
+  const product       = document.getElementById('productInput').value.trim();
+  if (!url)            { document.getElementById('urlInput').focus();       return; }
+  if (!myCompanyUrl)   { document.getElementById('myCompanyInput').focus(); return; }
+  if (!product)        { document.getElementById('productInput').focus();   return; }
+
+Then in the same function, find this line:
+
+    const payload = { url };
+
+Replace it with:
+
+    const payload = { url, my_company_url: myCompanyUrl };
+
+---
+
+CHANGE 3 — In app.py, update the /api/generate route to accept my_company_url, scrape it, and add the scraped content to seller_info.
+
+Find this whole function:
+
+@app.route("/api/generate", methods=["POST"])
+def api_generate():
+    data = request.get_json()
+    url = data.get("url", "").strip()
+    seller_info = data.get("seller_info", None)
+
+    if not url:
+        return jsonify({"error": "Please enter a URL"}), 400
+
+    start = time.time()
+
+    try:
+        scraped = scrape_website(url)
+        if not scraped:
+            return jsonify({"error": f"Could not scrape {url}. The site may be blocking requests or the URL may be invalid."}), 400
+
+        result = run_full_pipeline(scraped, seller_info)
+        result["duration_seconds"] = round(time.time() - start, 1)
+        return jsonify(result)
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Something went wrong: {str(e)}"}), 500
+
+Replace it with:
+
+@app.route("/api/generate", methods=["POST"])
+def api_generate():
+    data = request.get_json()
+    url = data.get("url", "").strip()
+    my_company_url = data.get("my_company_url", "").strip()
+    seller_info = data.get("seller_info", None)
+
+    if not url:
+        return jsonify({"error": "Please enter a target URL"}), 400
+    if not my_company_url:
+        return jsonify({"error": "Please enter your company URL"}), 400
+
+    start = time.time()
+
+    try:
+        scraped = scrape_website(url)
+        if not scraped:
+            return jsonify({"error": f"Could not scrape {url}. The site may be blocking requests or the URL may be invalid."}), 400
+
+        # Scrape the seller's own company site so campaigns reference real wins, customers, value props
+        seller_scraped = scrape_website(my_company_url)
+        if seller_scraped:
+            if seller_info is None:
+                seller_info = {}
+            if not seller_info.get("company_name"):
+                seller_info["company_name"] = "My Company"
+            seller_info["seller_company_url"] = my_company_url
+            seller_info["seller_company_text"] = seller_scraped["all_text"]
+
+        result = run_full_pipeline(scraped, seller_info)
+        result["duration_seconds"] = round(time.time() - start, 1)
+        if seller_scraped:
+            result["seller_pages_scraped"] = seller_scraped["pages_found"]
+            result["seller_chars_scraped"] = seller_scraped["total_chars"]
+        return jsonify(result)
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Something went wrong: {str(e)}"}), 500
+
+---
+
+CHANGE 4 — In analyzer.py, update the _build_seller_context function to include the seller's scraped website content in the prompt context.
+
+Find this function:
+
+def _build_seller_context(seller_info: dict) -> str:
+    """Build seller context string from optional inputs."""
+    if not seller_info or not seller_info.get("company_name"):
+        return ""
+
+    parts = []
+    parts.append(f"SELLER COMPANY: {seller_info['company_name']}")
+    if seller_info.get("what_you_sell"):
+        parts.append(f"WHAT THEY SELL: {seller_info['what_you_sell']}")
+    if seller_info.get("customer_wins"):
+        parts.append(f"PROOF/CUSTOMER WINS:\n{seller_info['customer_wins']}")
+    if seller_info.get("buyer_persona"):
+        parts.append(f"TYPICAL BUYER PERSONA: {seller_info['buyer_persona']}")
+
+    return "\n\n".join(parts)
+
+Replace it with:
+
+def _build_seller_context(seller_info: dict) -> str:
+    """Build seller context string from inputs and scraped seller website."""
+    if not seller_info or not seller_info.get("company_name"):
+        return ""
+
+    parts = []
+    parts.append(f"SELLER COMPANY: {seller_info['company_name']}")
+    if seller_info.get("seller_company_url"):
+        parts.append(f"SELLER COMPANY URL: {seller_info['seller_company_url']}")
+    if seller_info.get("what_you_sell"):
+        parts.append(f"WHAT THEY SELL: {seller_info['what_you_sell']}")
+    if seller_info.get("customer_wins"):
+        parts.append(f"PROOF/CUSTOMER WINS (user-provided):\n{seller_info['customer_wins']}")
+    if seller_info.get("buyer_persona"):
+        parts.append(f"TYPICAL BUYER PERSONA: {seller_info['buyer_persona']}")
+    if seller_info.get("seller_company_text"):
+        # Cap to keep prompt manageable
+        seller_text = seller_info["seller_company_text"][:8000]
+        parts.append(
+            f"SELLER COMPANY WEBSITE CONTENT (scraped from their site — use this to find their real customer names, real case studies with metrics, real value props, and recent product/news signals to reference in case study and signal-based campaigns):\n{seller_text}"
+        )
+
+    return "\n\n".join(parts)
+
+---
+
+CHANGE 5 — In app.py, update the JavaScript renderResults function to show the seller's pages scraped in the meta line at the bottom of the results.
+
+Find this line:
+
+  document.getElementById('metaText').textContent =
+    `${data.pages_scraped} pages scraped · ${(data.chars_scraped||0).toLocaleString()} chars · ${data.duration_seconds}s${cached}${selCtx}`;
+
+Replace it with:
+
+  const sellerMeta = data.seller_pages_scraped
+    ? ` · ${data.seller_pages_scraped} pages from your site (${(data.seller_chars_scraped||0).toLocaleString()} chars)`
+    : '';
+  document.getElementById('metaText').textContent =
+    `${data.pages_scraped} pages scraped · ${(data.chars_scraped||0).toLocaleString()} chars · ${data.duration_seconds}s${cached}${selCtx}${sellerMeta}`;
+
+---
+
+After making all 5 changes, restart the app and confirm:
+1. The form now has 5 fields in this order: Target company URL, Your company URL, What product are you selling, Your proof points, Sample buyer LinkedIn profiles.
+2. Both URL fields are required — clicking Generate with either empty should focus that field.
+3. Running a generation completes successfully and the meta line at the bottom now shows pages scraped from BOTH sites — for example: "4 pages scraped · 11,411 chars · 38s · seller context applied · 6 pages from your site (14,200 chars)"
+4. The Case Study Campaign emails reference real customer names from your company URL (if your site has public customer names) instead of generic placeholders.

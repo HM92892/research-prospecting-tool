@@ -214,18 +214,26 @@ The SDR provided these LinkedIn profile URLs as examples of their ideal buyer. B
 # ============================================================
 
 def _build_seller_context(seller_info: dict) -> str:
-    """Build seller context string from optional inputs."""
+    """Build seller context string from inputs and scraped seller website."""
     if not seller_info or not seller_info.get("company_name"):
         return ""
 
     parts = []
     parts.append(f"SELLER COMPANY: {seller_info['company_name']}")
+    if seller_info.get("seller_company_url"):
+        parts.append(f"SELLER COMPANY URL: {seller_info['seller_company_url']}")
     if seller_info.get("what_you_sell"):
         parts.append(f"WHAT THEY SELL: {seller_info['what_you_sell']}")
     if seller_info.get("customer_wins"):
-        parts.append(f"PROOF/CUSTOMER WINS:\n{seller_info['customer_wins']}")
+        parts.append(f"PROOF/CUSTOMER WINS (user-provided):\n{seller_info['customer_wins']}")
     if seller_info.get("buyer_persona"):
         parts.append(f"TYPICAL BUYER PERSONA: {seller_info['buyer_persona']}")
+    if seller_info.get("seller_company_text"):
+        # Cap to keep prompt manageable
+        seller_text = seller_info["seller_company_text"][:8000]
+        parts.append(
+            f"SELLER COMPANY WEBSITE CONTENT (scraped from their site — use this to find their real customer names, real case studies with metrics, real value props, and recent product/news signals to reference in case study and signal-based campaigns):\n{seller_text}"
+        )
 
     return "\n\n".join(parts)
 
