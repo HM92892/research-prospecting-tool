@@ -1,0 +1,100 @@
+I need 5 specific changes across app.py and analyzer.py. Make ONLY these changes. Do not touch unrelated code, do not refactor.
+
+---
+
+CHANGE 1 — In app.py, add example URL chips below the "Your company URL" field (similar to the existing chips below the Target URL field).
+
+Find the "Your company URL" input section. It looks like:
+
+  <div class="space-y-1.5">
+    <label class="block text-sm font-semibold text-n-body" for="myCompanyInput">
+      Your company URL <span class="text-n-blue">*</span>
+    </label>
+    <input id="myCompanyInput" type="url" autocomplete="off"
+      placeholder="https://www.yourcompany.com"
+      class="w-full px-3 py-2 border border-n-border rounded-md text-sm text-n-body placeholder-[#C4C4C0] focus:outline-none focus:border-n-blue focus:ring-2 focus:ring-[#2383E2]/10 transition-colors" />
+    <p class="text-xs text-n-muted">We'll scrape your site to pull your real customers, case studies, and value props for the campaigns.</p>
+  </div>
+
+Right BEFORE that closing </div>, add this block:
+
+    <div class="flex items-center gap-2 mt-2 flex-wrap">
+      <span class="text-[10px] font-bold uppercase tracking-wide text-n-muted">Try:</span>
+      <button onclick="setMyCompany('https://www.gong.io')" class="px-3 py-1 text-xs bg-n-block border border-n-border rounded text-n-sec hover:border-n-blue hover:text-n-body transition-colors">gong.io</button>
+      <button onclick="setMyCompany('https://www.outreach.io')" class="px-3 py-1 text-xs bg-n-block border border-n-border rounded text-n-sec hover:border-n-blue hover:text-n-body transition-colors">outreach.io</button>
+      <button onclick="setMyCompany('https://www.lavender.ai')" class="px-3 py-1 text-xs bg-n-block border border-n-border rounded text-n-sec hover:border-n-blue hover:text-n-body transition-colors">lavender.ai</button>
+    </div>
+
+Then in the JavaScript section, near the existing setUrl function, add this new function:
+
+  function setMyCompany(url) {
+    document.getElementById('myCompanyInput').value = url;
+  }
+
+(Note: setMyCompany only fills the field, it does not auto-trigger generate, because both URL fields and the product field need to be filled before Generate can run.)
+
+---
+
+CHANGE 2 — In app.py, parallelize the target scrape and seller scrape in /api/generate.
+
+At the top of app.py, after the existing imports, add:
+
+from concurrent.futures import ThreadPoolExecutor
+
+In the api_generate function, find this block:
+
+    try:
+        scraped = scrape_website(url)
+        if not scraped:
+            return jsonify({"error": f"Could not scrape {url}. The site may be blocking requests or the URL may be invalid."}), 400
+
+        # Scrape the seller's own company site so campaigns reference real wins, customers, value props
+        seller_scraped = scrape_website(my_company_url)
+
+Replace it with:
+
+    try:
+        # Scrape both target and seller sites in parallel for speed
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            target_future = executor.submit(scrape_website, url)
+            seller_future = executor.submit(scrape_website, my_company_url)
+            scraped = target_future.result()
+            seller_scraped = seller_future.result()
+
+        if not scraped:
+            return jsonify({"error": f"Could not scrape {url}. The site may be blocking requests or the URL may be invalid."}), 400
+
+---
+
+CHANGE 3 — In analyzer.py, add three new rules to the EMAIL_PROMPT_WITH_SELLER prompt's CRITICAL RULES section.
+
+Find this section in the EMAIL_PROMPT_WITH_SELLER (it's near the end of that prompt, before "Return ONLY the JSON. No other text."):
+
+CRITICAL RULES:
+- All emails are FROM {seller_name} TO prospects at the target company.
+- EVERY campaign must have all fields filled in. Do NOT use "..." as a value. Do NOT skip followup_2 or followup_3 for ANY campaign.
+- Email 1: 70-90 words. Email 2: 60-80 words. Email 3: 50-70 words.
+- No em dashes anywhere. No exclamation points. No filler.
+- Emails should sound conversational, like a real person typing. Use contractions (don't, we're, that's). Start sentences with "So" or "Just" when natural. Never say "I hope this finds you well" or "I wanted to reach out."
+- Subject lines: 2-3 words, lowercase, colleague test.
+- Creative Ideas MUST be specific to the target company's product, customers, or recent activity. NOT generic {seller_name} value props. Each idea should make the reader think "they actually understand our business."
+- Each follow-up MUST have a different angle/value prop than the previous email.
+- Email 2 should lower the ask (if email 1 was SQL, email 2 should be MQL).
+- Email 3 should give free value (a list, an audit snippet, a finding).
+- The implicit_objection field must go DEEP. Not "they already have tools." What is the REAL fear or concern? Example: "The real objection isn't that they have tools, it's that adding another vendor to an already complex stack means more integration work, more vendor management, and the risk of looking foolish if it doesn't deliver. The email handles this by..."
+- If seller context is provided, use their actual proof/customer wins. If not, generate based on the target company analysis.
+
+Right BEFORE the closing line "Return ONLY the JSON. No other text." add these three new rules at the end of the CRITICAL RULES list (keep all existing rules intact):
+
+- NAME REAL CUSTOMERS IN CASE STUDY CAMPAIGN: For the Case Study Campaign, you MUST reference at least one specific customer name from the SELLER COMPANY WEBSITE CONTENT in the email_body. Use the exact customer name with the exact metric they achieved (for example: "Salesloft cut deal cycle by 30%" or "Octopus Deploy doubled rep ramp time"). Do NOT use generic placeholders like "a similar company", "an ABM platform", or "one of our customers". If the seller's scraped content does not contain specific customer wins with metrics, fall back to the user-provided customer_wins, but never invent.
+- NEVER FABRICATE STATISTICS: Only cite percentages, dollar figures, or specific metrics that explicitly appear in either the SELLER COMPANY WEBSITE CONTENT or the user-provided customer_wins. If a number isn't sourced, use qualitative language like "significant gains", "measurable improvement", or "double-digit growth" instead of inventing a percentage.
+- DIVERSIFY IMPLICIT OBJECTIONS: Each of the three campaigns must have a DIFFERENT real implicit objection, not the same concern phrased three ways. Spread across distinct objection types like: (a) "we already have a similar tool — vendor fatigue", (b) "this will create more work for my team — integration burden", (c) "I don't have budget approval right now — buying authority gap", (d) "we tried something like this before and it didn't work — past failure", (e) "this is too generic for our specific market — fit concern". Pick three different angles. Do not repeat "they already have a sophisticated system" across all three campaigns.
+
+---
+
+After making all 5 changes, restart the app and confirm:
+1. Below the "Your company URL" field there is now a "Try:" row with three chips (gong.io, outreach.io, lavender.ai). Clicking a chip fills the field but does NOT auto-run generation.
+2. Total pipeline time drops by roughly 5-10 seconds because both scrapes now run in parallel.
+3. The Case Study Campaign email body now references a specific named customer with a real metric (not "a similar company" placeholder).
+4. The three campaigns each have a meaningfully different implicit objection (vendor fatigue, integration burden, budget, past failure, fit concern, etc. — three distinct angles).
+5. No fabricated percentages appear that weren't in the seller scrape or user input.

@@ -5,6 +5,7 @@ Research & Prospecting Tool v2 - Flask Web App
 from flask import Flask, request, jsonify, render_template_string
 from scraper import scrape_website
 from analyzer import run_full_pipeline
+from concurrent.futures import ThreadPoolExecutor
 import time
 import os
 
@@ -141,6 +142,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         placeholder="https://www.yourcompany.com"
         class="w-full px-3 py-2 border border-n-border rounded-md text-sm text-n-body placeholder-[#C4C4C0] focus:outline-none focus:border-n-blue focus:ring-2 focus:ring-[#2383E2]/10 transition-colors" />
       <p class="text-xs text-n-muted">We'll scrape your site to pull your real customers, case studies, and value props for the campaigns.</p>
+      <div class="flex items-center gap-2 mt-2 flex-wrap">
+        <span class="text-[10px] font-bold uppercase tracking-wide text-n-muted">Try:</span>
+        <button onclick="setMyCompany('https://www.gong.io')" class="px-3 py-1 text-xs bg-n-block border border-n-border rounded text-n-sec hover:border-n-blue hover:text-n-body transition-colors">gong.io</button>
+        <button onclick="setMyCompany('https://www.outreach.io')" class="px-3 py-1 text-xs bg-n-block border border-n-border rounded text-n-sec hover:border-n-blue hover:text-n-body transition-colors">outreach.io</button>
+        <button onclick="setMyCompany('https://www.lavender.ai')" class="px-3 py-1 text-xs bg-n-block border border-n-border rounded text-n-sec hover:border-n-blue hover:text-n-body transition-colors">lavender.ai</button>
+      </div>
     </div>
 
     <div class="space-y-1.5">
@@ -250,6 +257,10 @@ let currentData = null;
 function setUrl(url) {
   document.getElementById('urlInput').value = url;
   generate();
+}
+
+function setMyCompany(url) {
+  document.getElementById('myCompanyInput').value = url;
 }
 
 /* ── Utilities ── */
@@ -826,12 +837,15 @@ def api_generate():
     start = time.time()
 
     try:
-        scraped = scrape_website(url)
+        # Scrape both target and seller sites in parallel for speed
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            target_future = executor.submit(scrape_website, url)
+            seller_future = executor.submit(scrape_website, my_company_url)
+            scraped = target_future.result()
+            seller_scraped = seller_future.result()
+
         if not scraped:
             return jsonify({"error": f"Could not scrape {url}. The site may be blocking requests or the URL may be invalid."}), 400
-
-        # Scrape the seller's own company site so campaigns reference real wins, customers, value props
-        seller_scraped = scrape_website(my_company_url)
         if seller_scraped:
             if seller_info is None:
                 seller_info = {}
