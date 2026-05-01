@@ -219,6 +219,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 
     <div class="tab-pane active" id="tab-campaigns">
+      <div class="flex justify-end mb-4">
+        <button id="regenerateCampaignsBtn" onclick="regenerateCampaigns()"
+          class="text-xs font-medium text-n-body border border-n-border rounded px-3 py-1.5 hover:bg-n-block transition-colors inline-flex items-center gap-1.5">
+          <span>↻</span> Regenerate campaigns
+        </button>
+      </div>
       <div id="campaignsGrid"></div>
     </div>
 
@@ -356,8 +362,8 @@ function startProgress() {
   bar.style.transition = 'none';
   bar.style.width = '0%';
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    bar.style.transition = 'width 55s cubic-bezier(0.1, 0.9, 0.2, 1)';
-    bar.style.width = '82%';
+    bar.style.transition = 'width 90s cubic-bezier(0.1, 0.9, 0.2, 1)';
+    bar.style.width = '95%';
   }));
 }
 function finishProgress() {
@@ -383,7 +389,7 @@ function startSteps() {
   stepTimer = setInterval(() => {
     stepIdx = Math.min(stepIdx + 1, STEPS.length - 1);
     document.getElementById('loadingStepText').textContent = STEPS[stepIdx];
-  }, 9000);
+  }, 18000);
 }
 function stopSteps() {
   if (stepTimer) { clearInterval(stepTimer); stepTimer = null; }
@@ -742,6 +748,45 @@ function toggleBlock(header) {
   header.closest('.toggle-block').classList.toggle('open');
 }
 
+async function regenerateCampaigns() {
+  if (!currentData || !currentData.company_analysis) return;
+  const btn = document.getElementById('regenerateCampaignsBtn');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span>⟳</span> Regenerating…';
+
+  try {
+    const my_company_url = document.getElementById('myCompanyInput').value.trim();
+    const seller = getSellerInfo();
+
+    const resp = await fetch('/api/regenerate-campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company_analysis: currentData.company_analysis,
+        my_company_url,
+        seller_info: seller,
+      }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Something went wrong');
+    }
+
+    const data = await resp.json();
+    currentData.campaigns = data.campaigns || [];
+    if (data.offer_recommendation) currentData.offer_recommendation = data.offer_recommendation;
+    if (data.offer_reasoning) currentData.offer_reasoning = data.offer_reasoning;
+    renderCampaigns(currentData.campaigns);
+  } catch (e) {
+    alert('Failed to regenerate: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
 function copyEmail(e, idx) {
   e.stopPropagation();
   if (!currentData || !currentData.campaigns[idx]) return;
@@ -863,6 +908,39 @@ def api_generate():
 
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Something went wrong: {str(e)}"}), 500
+
+
+@app.route("/api/regenerate-campaigns", methods=["POST"])
+def api_regenerate_campaigns():
+    from analyzer import generate_campaigns
+    data = request.get_json()
+    company_analysis = data.get("company_analysis", "")
+    my_company_url = data.get("my_company_url", "").strip()
+    seller_info = data.get("seller_info", None)
+
+    if not company_analysis:
+        return jsonify({"error": "Missing company_analysis. Run a full generation first."}), 400
+
+    # Re-scrape seller URL (will be instant from cache if recent)
+    if my_company_url:
+        seller_scraped = scrape_website(my_company_url)
+        if seller_scraped:
+            if seller_info is None:
+                seller_info = {}
+            if not seller_info.get("company_name"):
+                seller_info["company_name"] = "My Company"
+            seller_info["seller_company_url"] = my_company_url
+            seller_info["seller_company_text"] = seller_scraped["all_text"]
+
+    try:
+        campaign_data = generate_campaigns(company_analysis, seller_info)
+        return jsonify({
+            "campaigns": campaign_data.get("campaigns", []),
+            "offer_recommendation": campaign_data.get("offer_recommendation", ""),
+            "offer_reasoning": campaign_data.get("offer_reasoning", ""),
+        })
     except Exception as e:
         return jsonify({"error": f"Something went wrong: {str(e)}"}), 500
 

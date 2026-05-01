@@ -1,0 +1,153 @@
+I need 3 changes across app.py to improve UX. Make ONLY these changes. Do not touch unrelated code.
+
+---
+
+CHANGE 1 — Make the loading progress bar match real pipeline time.
+
+Currently the bar runs on a fixed 55-second timer, capping at 82%. With actual pipelines now around 90 seconds, the bar finishes early and sits idle. Update both the bar duration and the step text timer.
+
+In the JavaScript section, find this function:
+
+function startProgress() {
+  const bar = document.getElementById('progressBar');
+  bar.style.display = 'block';
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    bar.style.transition = 'width 55s cubic-bezier(0.1, 0.9, 0.2, 1)';
+    bar.style.width = '82%';
+  }));
+}
+
+Replace it with:
+
+function startProgress() {
+  const bar = document.getElementById('progressBar');
+  bar.style.display = 'block';
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    bar.style.transition = 'width 90s cubic-bezier(0.1, 0.9, 0.2, 1)';
+    bar.style.width = '95%';
+  }));
+}
+
+Then in the same JavaScript section, find this line inside the startSteps function:
+
+  }, 9000);
+
+Replace with:
+
+  }, 18000);
+
+(Reasoning: 5 steps × 18 seconds = 90 seconds, matching the actual pipeline length so the loading text doesn't get stuck on the last step too early.)
+
+---
+
+CHANGE 2 — Add a new API endpoint to regenerate just the campaigns without redoing the target scrape, the company analysis, the ICP, or the brief.
+
+In app.py, find the existing /api/health route. Right BEFORE that route, insert this new route:
+
+@app.route("/api/regenerate-campaigns", methods=["POST"])
+def api_regenerate_campaigns():
+    from analyzer import generate_campaigns
+    data = request.get_json()
+    company_analysis = data.get("company_analysis", "")
+    my_company_url = data.get("my_company_url", "").strip()
+    seller_info = data.get("seller_info", None)
+
+    if not company_analysis:
+        return jsonify({"error": "Missing company_analysis. Run a full generation first."}), 400
+
+    # Re-scrape seller URL (will be instant from cache if recent)
+    if my_company_url:
+        seller_scraped = scrape_website(my_company_url)
+        if seller_scraped:
+            if seller_info is None:
+                seller_info = {}
+            if not seller_info.get("company_name"):
+                seller_info["company_name"] = "My Company"
+            seller_info["seller_company_url"] = my_company_url
+            seller_info["seller_company_text"] = seller_scraped["all_text"]
+
+    try:
+        campaign_data = generate_campaigns(company_analysis, seller_info)
+        return jsonify({
+            "campaigns": campaign_data.get("campaigns", []),
+            "offer_recommendation": campaign_data.get("offer_recommendation", ""),
+            "offer_reasoning": campaign_data.get("offer_reasoning", ""),
+        })
+    except Exception as e:
+        return jsonify({"error": f"Something went wrong: {str(e)}"}), 500
+
+---
+
+CHANGE 3 — Add a "Regenerate campaigns" button at the top of the Campaigns tab, with the JS function to call the new endpoint.
+
+In the HTML, find this block:
+
+    <div class="tab-pane active" id="tab-campaigns">
+      <div id="campaignsGrid"></div>
+    </div>
+
+Replace it with:
+
+    <div class="tab-pane active" id="tab-campaigns">
+      <div class="flex justify-end mb-4">
+        <button id="regenerateCampaignsBtn" onclick="regenerateCampaigns()"
+          class="text-xs font-medium text-n-body border border-n-border rounded px-3 py-1.5 hover:bg-n-block transition-colors inline-flex items-center gap-1.5">
+          <span>↻</span> Regenerate campaigns
+        </button>
+      </div>
+      <div id="campaignsGrid"></div>
+    </div>
+
+In the JavaScript section, near the existing copyEmail function, add this new function:
+
+async function regenerateCampaigns() {
+  if (!currentData || !currentData.company_analysis) return;
+  const btn = document.getElementById('regenerateCampaignsBtn');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span>⟳</span> Regenerating…';
+
+  try {
+    const my_company_url = document.getElementById('myCompanyInput').value.trim();
+    const seller = getSellerInfo();
+
+    const resp = await fetch('/api/regenerate-campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company_analysis: currentData.company_analysis,
+        my_company_url,
+        seller_info: seller,
+      }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Something went wrong');
+    }
+
+    const data = await resp.json();
+    currentData.campaigns = data.campaigns || [];
+    if (data.offer_recommendation) currentData.offer_recommendation = data.offer_recommendation;
+    if (data.offer_reasoning) currentData.offer_reasoning = data.offer_reasoning;
+    renderCampaigns(currentData.campaigns);
+  } catch (e) {
+    alert('Failed to regenerate: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
+---
+
+After making all 3 changes, restart the app and confirm:
+1. After clicking Generate, the progress bar fills more smoothly over ~90 seconds and reaches close to 95% (instead of finishing at 82% halfway through).
+2. The loading text steps cycle every 18 seconds instead of 9, so the text doesn't get stuck on "Assembling your kit" for half the wait.
+3. After a generation completes, a "↻ Regenerate campaigns" button appears in the top-right of the Campaigns tab.
+4. Clicking that button takes ~25-35 seconds (just one Claude call + cached scrape) and replaces the three campaign cards with new versions, without redoing the brief, ICP, or full analysis.
+5. The brief, ICP, Company Intel, and Full Analysis tabs all stay unchanged after a regenerate (only the campaigns refresh).
